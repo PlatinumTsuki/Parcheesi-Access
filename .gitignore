@@ -1,0 +1,37 @@
+# --- .NET build artifacts ---
+**/bin/
+**/obj/
+**/publish/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# --- Visual Studio / Rider / VS Code ---
+.vs/
+.idea/
+.vscode/
+*.lock.json
+
+# --- Runtime / per-user data (next to .exe) ---
+**/settings.json
+**/stats.json
+**/achievements.json
+**/current_game.json
+**/last_game.log
+**/crash.log
+
+# --- Distribution archives (rebuilt by `dotnet publish`) ---
+*.zip
+
+# --- Generated release output (built by `dotnet publish` then assembled by hand) ---
+release/publish/
+release/*.zip
+
+# --- OS junk ---
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# --- Tooling-specific (do not commit) ---
+.claude/

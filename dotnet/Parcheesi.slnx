@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Parcheesi.App/Parcheesi.App.csproj" />
+  <Project Path="Parcheesi.Audio/Parcheesi.Audio.csproj" />
+  <Project Path="Parcheesi.Core/Parcheesi.Core.csproj" />
+</Solution>

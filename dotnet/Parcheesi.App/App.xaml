@@ -1,0 +1,36 @@
+<Application x:Class="Parcheesi.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Parcheesi.App"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <SolidColorBrush x:Key="BoardBg" Color="#0E1116" />
+            <SolidColorBrush x:Key="PanelBg" Color="#161B22" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#30363D" />
+            <SolidColorBrush x:Key="TextBrush" Color="#E6EDF3" />
+            <SolidColorBrush x:Key="MutedBrush" Color="#8B949E" />
+            <SolidColorBrush x:Key="AccentBrush" Color="#58A6FF" />
+
+            <SolidColorBrush x:Key="RougeBrush" Color="#F85149" />
+            <SolidColorBrush x:Key="JauneBrush" Color="#F0C64A" />
+            <SolidColorBrush x:Key="BleuBrush"  Color="#58A6FF" />
+            <SolidColorBrush x:Key="VertBrush"  Color="#3FB950" />
+            <SolidColorBrush x:Key="SafeBrush"  Color="#5A4220" />
+
+            <Style TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                <Setter Property="Foreground" Value="#0E1116" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="12,6" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="FontWeight" Value="Bold" />
+                <Setter Property="MinHeight" Value="32" />
+            </Style>
+
+            <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
