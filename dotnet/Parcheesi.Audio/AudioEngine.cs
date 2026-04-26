@@ -32,6 +32,13 @@ public sealed class AudioEngine : IDisposable
     public float MasterVolume { get; set; } = 0.85f;
 
     /// <summary>
+    /// Liste des fichiers audio qui ont échoué au préchargement (introuvables ou corrompus).
+    /// Reste vide en fonctionnement normal. Permet à l'UI d'écrire un log de diagnostic
+    /// si un asset est manquant après build ou un .ogg corrompu.
+    /// </summary>
+    public List<string> PreloadFailures { get; } = new();
+
+    /// <summary>
     /// Construit un moteur audio à partir d'une fonction qui ouvre un fichier son
     /// par son nom (par exemple "dice_shake_1.ogg"). Retourne null si introuvable.
     /// </summary>
@@ -109,7 +116,11 @@ public sealed class AudioEngine : IDisposable
             foreach (var file in files)
             {
                 using var srcStream = _openSound(file);
-                if (srcStream == null) continue;
+                if (srcStream == null)
+                {
+                    PreloadFailures.Add($"{file}: introuvable");
+                    continue;
+                }
                 // Copie en mémoire pour avoir un Stream seekable utilisable par tous les readers.
                 using var ms = new MemoryStream();
                 srcStream.CopyTo(ms);
@@ -127,7 +138,10 @@ public sealed class AudioEngine : IDisposable
                     Buffer.BlockCopy(list.ToArray(), 0, pcm, 0, pcm.Length);
                     samples.Add((pcm, WaveFormat.CreateIeeeFloatWaveFormat(reader.WaveFormat.SampleRate, reader.WaveFormat.Channels)));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    PreloadFailures.Add($"{file}: {ex.GetType().Name}: {ex.Message}");
+                }
             }
             if (samples.Count > 0)
                 _samples[effect] = samples;
@@ -213,7 +227,14 @@ public sealed class AudioEngine : IDisposable
         StopMusic();
         lock (_lock) { _musicStopRequested = false; }
         var stream = _openSound(filename);
-        if (stream == null) { onEnd?.Invoke(); return; }
+        if (stream == null)
+        {
+            // Asynchrone via ThreadPool : si onEnd chaine la playlist (PlayNextGameMusic),
+            // un appel synchrone provoquerait une récursion de pile illimitée si tous les
+            // fichiers manquaient. ThreadPool casse la chaîne de pile.
+            if (onEnd != null) Task.Run(onEnd);
+            return;
+        }
         try
         {
             // Stream seekable nécessaire pour Mp3FileReader.
@@ -284,13 +305,12 @@ public sealed class AudioEngine : IDisposable
     public void SetMusicVolume(float volume)
     {
         var clamped = Math.Clamp(volume, 0f, 1f);
-        VolumeSampleProvider? v;
         lock (_lock)
         {
             _musicBaseVolume = clamped;
-            v = _musicVolume;
+            if (_musicVolume != null)
+                _musicVolume.Volume = MasterVolume * clamped;
         }
-        if (v != null) v.Volume = MasterVolume * clamped;
     }
 
     /// <summary>

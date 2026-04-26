@@ -12,6 +12,11 @@ namespace Parcheesi.App.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged
 {
+    /// <summary>Seuil "speed run" : moins de tours = victoire considérée rapide (achievement, palier triomphe).</summary>
+    private const int SpeedRunThreshold = 30;
+    /// <summary>Seuil "tour rapide" pour la phrase contextuelle "course menée tambour battant".</summary>
+    private const int FastWinThreshold = 50;
+
     private CoreGame? _game;
     public CoreGame? Game => _game;
 
@@ -184,6 +189,21 @@ public class MainViewModel : INotifyPropertyChanged
         Audio = new AudioEngine(name => asm.GetManifestResourceStream($"Sounds.{name}"));
         Audio.Preload();
         Audio.MasterVolume = Settings.MasterVolume;
+
+        // Diagnostic : si des sons embarqués ont échoué au préchargement (.exe cassé ou
+        // asset corrompu), trace ça dans audio_load.log à côté de l'.exe. Le fichier
+        // n'est créé que s'il y a au moins un échec.
+        if (Audio.PreloadFailures.Count > 0)
+        {
+            try
+            {
+                var path = Path.Combine(AppContext.BaseDirectory, "audio_load.log");
+                var content = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {Audio.PreloadFailures.Count} effet(s) audio en échec :\n"
+                            + string.Join("\n", Audio.PreloadFailures.Select(f => "  - " + f));
+                File.WriteAllText(path, content);
+            }
+            catch { /* ne pas crasher si le log lui-même échoue */ }
+        }
         Settings.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(Settings.MasterVolume))
@@ -397,6 +417,12 @@ public class MainViewModel : INotifyPropertyChanged
 
     public bool HasSavedGame() => File.Exists(SaveFilePath);
 
+    /// <summary>
+    /// Annonce une seule fois par session qu'une sauvegarde échoue, pour ne pas spammer
+    /// si le disque est plein ou les permissions cassées (chaque coup déclenche une save).
+    /// </summary>
+    private bool _saveFailureAnnounced = false;
+
     private void SaveCurrentGame()
     {
         if (_game == null || _game.Finished) return;
@@ -410,8 +436,16 @@ public class MainViewModel : INotifyPropertyChanged
             };
             var json = System.Text.Json.JsonSerializer.Serialize(snap, opts);
             File.WriteAllText(SaveFilePath, json);
+            _saveFailureAnnounced = false; // reset si la sauvegarde refonctionne
         }
-        catch { }
+        catch
+        {
+            if (!_saveFailureAnnounced)
+            {
+                _saveFailureAnnounced = true;
+                Announce(Loc.Get("error.save_failed"));
+            }
+        }
     }
 
     private void DeleteSavedGame()
@@ -461,6 +495,7 @@ public class MainViewModel : INotifyPropertyChanged
                 : Loc.Format("game.resumed_announce_choose", _game.Current.Label));
             Audio.Play(SoundEffect.TurnChange);
             if (_game.Current.IsComputer) ScheduleAITurn();
+            else StartTurnTimer();
             return true;
         }
         catch
@@ -679,15 +714,19 @@ public class MainViewModel : INotifyPropertyChanged
             // Auto-play par l'IA en niveau Moyen avec personnalité Standard
             Announce(Loc.Get("timer.expired_autoplay_announce"));
             Log(Loc.Get("timer.expired_autoplay_log"));
-            // Sauve la personnalité originale, met Standard temporairement, joue, restaure
-            var savedPersonality = _game.Current.Personality;
-            _game.Current.Personality = AIPersonality.Standard;
+            // Sauve la personnalité originale du joueur humain courant, met Standard temporairement,
+            // joue, puis restaure. On capture la *référence* du joueur (pas _game.Current) car
+            // l'auto-play peut faire avancer le tour, auquel cas _game.Current pointerait sur
+            // un autre joueur (typiquement l'IA suivante) et on écraserait sa personnalité.
+            var humanPlayer = _game.Current;
+            var savedPersonality = humanPlayer.Personality;
+            humanPlayer.Personality = AIPersonality.Standard;
             try
             {
                 if (_game.AwaitingRoll) RollDice();
                 if (_game == null || _game.Finished) { return; }
                 // Joue tous les coups possibles automatiquement
-                while (!_game.Finished && !_game.Current.IsComputer && !_game.AwaitingRoll)
+                while (!_game.Finished && _game.Current == humanPlayer && !_game.AwaitingRoll)
                 {
                     var action = ComputerPlayer.DecideNextAction(_game, AIDifficulty.Moyen);
                     if (action == null) { EndTurnManually(); break; }
@@ -697,8 +736,7 @@ public class MainViewModel : INotifyPropertyChanged
             }
             finally
             {
-                if (_game != null && _game.Players.Contains(_game.Current))
-                    _game.Current.Personality = savedPersonality;
+                humanPlayer.Personality = savedPersonality;
             }
         }
     }
@@ -798,7 +836,13 @@ public class MainViewModel : INotifyPropertyChanged
             else
             {
                 var oppList = string.Join(", ", aiOpponents.Select(p => p.Label));
-                greeting = Loc.Format("announce.greeting_verbose_vs_ai", oppList, difficulty, _game.Current.Label);
+                var difficultyLabel = Loc.Get(difficulty switch
+                {
+                    AIDifficulty.Facile => "difficulty.facile",
+                    AIDifficulty.Difficile => "difficulty.difficile",
+                    _ => "difficulty.moyen",
+                });
+                greeting = Loc.Format("announce.greeting_verbose_vs_ai", oppList, difficultyLabel, _game.Current.Label);
             }
         }
         else if (aiOpponents.Count == 0)
@@ -1338,8 +1382,8 @@ public class MainViewModel : INotifyPropertyChanged
         EndGameSummary = summary.ToString();
 
         var msg = humanWon
-            ? Loc.Format("endgame.victory_announce", winner, ranks, _capturesMadeThisGame, _piecesHomeThisGame)
-            : Loc.Format("endgame.defeat_announce", winner, ranks);
+            ? Loc.Format("endgame.victory_announce", winner, _turnsThisGame, _capturesMadeThisGame)
+            : Loc.Format("endgame.defeat_announce", winner, _turnsThisGame);
 
         if (Settings.ImmersiveAmbience)
         {
@@ -1352,10 +1396,14 @@ public class MainViewModel : INotifyPropertyChanged
                 Audio.Play(applause.Value.effect, 0f, applause.Value.volume);
         }
 
+        // Calcule les succès débloqués pour pouvoir les concaténer à l'annonce principale,
+        // au lieu de faire une seconde annonce 2.5 s plus tard qui chevauche la première.
+        var achievementSuffix = RecordGameStats();
+        if (!string.IsNullOrEmpty(achievementSuffix)) msg += " " + achievementSuffix;
+
         Log(msg);
         Announce(msg);
         TurnInfo = msg;
-        RecordGameStats();
 
         // Bascule sur l'écran de fin (le menu principal n'est pas encore réaffiché).
         IsInGame = false;
@@ -1385,10 +1433,15 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (humanWon)
         {
-            // Triomphe éclatant : speed run, niveau Difficile, sans capture subie
-            bool triumph = _turnsThisGame < 35
-                        || AIDifficulty == AIDifficulty.Difficile
-                        || _capturesReceivedThisGame == 0;
+            // Triomphe éclatant : il faut combiner au moins 2 critères sur 3 (speed run,
+            // adversaire Difficile, défense parfaite). Auparavant un seul critère suffisait,
+            // ce qui rendait le triomphe banal — par exemple ne pas être capturé en 1v1
+            // contre Facile suffisait, alors que c'est un scénario fréquent.
+            int triumphPoints = 0;
+            if (_turnsThisGame < SpeedRunThreshold) triumphPoints++;
+            if (AIDifficulty == AIDifficulty.Difficile) triumphPoints++;
+            if (_capturesReceivedThisGame == 0) triumphPoints++;
+            bool triumph = triumphPoints >= 2;
             // Coude-à-coude : adversaire à 3+ pions à la maison, ou ≥4 captures subies
             bool closeCall = !triumph
                           && (_opponentHomeCounts.Values.Any(c => c >= 3) || _capturesReceivedThisGame >= 4);
@@ -1424,7 +1477,7 @@ public class MainViewModel : INotifyPropertyChanged
                 return Loc.Get("context.win_offensive");
             if (_capturesReceivedThisGame == 0 && _piecesHomeThisGame == 4)
                 return Loc.Get("context.win_perfect_defense");
-            if (_piecesHomeThisGame == 4 && _turnsThisGame < 50)
+            if (_piecesHomeThisGame == 4 && _turnsThisGame < FastWinThreshold)
                 return Loc.Get("context.win_fast_home");
         }
         else
@@ -1468,9 +1521,14 @@ public class MainViewModel : INotifyPropertyChanged
         ReturnToMenu();
     }
 
-    private void RecordGameStats()
+    /// <summary>
+    /// Enregistre les statistiques de la partie et calcule les succès nouvellement débloqués.
+    /// Retourne le texte d'annonce pour les succès (pour concaténation à l'annonce principale),
+    /// ou null s'il n'y en a pas.
+    /// </summary>
+    private string? RecordGameStats()
     {
-        if (_game == null || _statsRecordedForCurrentGame) return;
+        if (_game == null || _statsRecordedForCurrentGame) return null;
         _statsRecordedForCurrentGame = true;
 
         Stats.GamesPlayed++;
@@ -1513,10 +1571,14 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         Stats.Save();
-        CheckAndAnnounceAchievements(humanWon);
+        return ComputeAchievementAnnouncement(humanWon);
     }
 
-    private void CheckAndAnnounceAchievements(bool humanWon)
+    /// <summary>
+    /// Vérifie et débloque les succès basés sur la partie courante. Retourne le texte
+    /// d'annonce à concaténer à l'annonce de fin de partie, ou null si rien de nouveau.
+    /// </summary>
+    private string? ComputeAchievementAnnouncement(bool humanWon)
     {
         var newlyUnlocked = new List<Achievement>();
 
@@ -1528,7 +1590,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (Stats.CapturesMade >= 100) Try("centurion");
 
         // Per-game (basés sur cette partie)
-        if (humanWon && _turnsThisGame < 30) Try("speed_run");
+        if (humanWon && _turnsThisGame < SpeedRunThreshold) Try("speed_run");
         if (humanWon && _capturesReceivedThisGame == 0) Try("untouchable");
         if (_capturesMadeThisGame >= 3) Try("hunter");
         if (humanWon && AIDifficulty == AIDifficulty.Difficile) Try("hard_winner");
@@ -1547,13 +1609,9 @@ public class MainViewModel : INotifyPropertyChanged
             var entries = string.Join(", ", newlyUnlocked.Select(a => Loc.Format("achievement.entry_format", a.Name, a.Description)));
             var msg = Loc.Format("achievement.unlocked_announce", entries);
             Log(msg);
-            // Annonce après un court délai pour ne pas chevaucher l'annonce de victoire
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(2500);
-                Announce(msg);
-            });
+            return msg;
         }
+        return null;
 
         void Try(string id)
         {

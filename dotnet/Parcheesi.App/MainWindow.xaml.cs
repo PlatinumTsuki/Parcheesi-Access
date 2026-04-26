@@ -500,11 +500,10 @@ public partial class MainWindow : Window
             };
             btn.SetBinding(AutomationProperties.NameProperty, nameBinding);
 
-            var contentBinding = new System.Windows.Data.Binding(nameof(BoardCellViewModel.OccupantSummary))
+            var contentBinding = new System.Windows.Data.Binding(nameof(BoardCellViewModel.OccupantGlyph))
             {
                 Source = cv,
                 Mode = System.Windows.Data.BindingMode.OneWay,
-                Converter = new OccupantToGlyphConverter(),
             };
             btn.SetBinding(Button.ContentProperty, contentBinding);
 
@@ -654,6 +653,23 @@ public partial class MainWindow : Window
             // On NE consomme PAS l'événement : la touche déclenche son action habituelle
         }
 
+        // Sur l'écran de fin de partie, on autorise uniquement les touches en lecture seule
+        // (relire le résumé, le plateau final, les stats…) sans aucune action de jeu.
+        if (_vm.IsInEndScreen)
+        {
+            switch (e.Key)
+            {
+                case Key.R: _vm.ReplayLastAnnouncement(); e.Handled = true; return;
+                case Key.K: _vm.ReadStats(); e.Handled = true; return;
+                case Key.M: _vm.ReadAchievements(); e.Handled = true; return;
+                case Key.L: _vm.ReadBoard(); e.Handled = true; return;
+                case Key.J: _vm.ReadOpponents(); e.Handled = true; return;
+                case Key.P: _vm.ReadRecentLog(); e.Handled = true; return;
+                case Key.H: _vm.ReadHelp(); e.Handled = true; return;
+            }
+            return;
+        }
+
         if (!_vm.IsInGame) return;
 
         var focused = Keyboard.FocusedElement as Button;
@@ -744,23 +760,3 @@ public class VolumeToPercentConverter : System.Windows.Data.IValueConverter
         => value is double d ? (float)(d / 100.0) : 0f;
 }
 
-public class OccupantToGlyphConverter : System.Windows.Data.IValueConverter
-{
-    public object Convert(object value, Type targetType, object? parameter, System.Globalization.CultureInfo culture)
-    {
-        if (value is not string s) return "";
-        if (s.StartsWith("vide") || s.StartsWith("slot vide") || s.StartsWith("aucun")) return "";
-        var idx = s.IndexOf("numéro ");
-        if (idx >= 0)
-        {
-            var num = new string(s.Skip(idx + 7).TakeWhile(char.IsDigit).ToArray());
-            if (s.Contains("Rouge"))  return "R" + num;
-            if (s.Contains("Jaune"))  return "J" + num;
-            if (s.Contains("Bleu"))   return "B" + num;
-            if (s.Contains("Vert"))   return "V" + num;
-            return num;
-        }
-        return "★";
-    }
-    public object ConvertBack(object value, Type t, object? p, System.Globalization.CultureInfo c) => throw new NotImplementedException();
-}

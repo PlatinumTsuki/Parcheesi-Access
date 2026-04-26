@@ -10,6 +10,25 @@
   "color.bleu": "Blue",
   "color.vert": "Green",
 
+  "difficulty.facile": "Easy",
+  "difficulty.moyen": "Medium",
+  "difficulty.difficile": "Hard",
+
+  "board.cell.empty": "empty",
+  "board.cell.base_slot_empty": "empty slot",
+  "board.cell.home_empty": "no piece home",
+  "board.cell.piece_label": "{0} piece number {1}",
+  "board.cell.piece_separator": ", and ",
+  "board.cell.home_summary_singular": "{0} piece home: {1}",
+  "board.cell.home_summary_plural": "{0} pieces home: {1}",
+  "board.kind.ring_safe": "Square {0} safe",
+  "board.kind.ring": "Square {0}",
+  "board.kind.lane": "{0} lane square {1} of 7",
+  "board.kind.base": "{0} base slot {1}",
+  "board.kind.home": "Central home",
+
+  "error.save_failed": "Warning: saving the game failed. Progress may be lost.",
+
   "personality.standard_short": "The Computer",
   "personality.aggressive_short": "The Aggressor",
   "personality.prudent_short": "The Cautious",
@@ -184,8 +203,8 @@
   "endgame.summary_captures_made": "  • Captures made: {0}",
   "endgame.summary_captures_received": "  • Captures suffered: {0}",
   "endgame.summary_pieces_home": "  • Pieces brought home: {0} of 4",
-  "endgame.victory_announce": "Victory for {0}! Ranking: {1}. You made {2} capture(s) and brought {3} piece(s) home.",
-  "endgame.defeat_announce": "Defeat — {0} won. Ranking: {1}.",
+  "endgame.victory_announce": "Well done! {0} won in {1} turns, {2} capture(s).",
+  "endgame.defeat_announce": "Defeat. {0} won in {1} turns.",
   "endgame.ranking_entry": "{0}. {1}",
 
   "victory.triumph.1": "The parlor rises. Roaring applause!",

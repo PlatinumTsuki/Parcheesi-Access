@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Parcheesi.Core;
+using Parcheesi.Core.Localization;
 
 namespace Parcheesi.App.Game;
 
@@ -12,21 +13,30 @@ public class BoardCellViewModel : INotifyPropertyChanged
 {
     public BoardCell Cell { get; }
 
-    private string _occupantSummary = "vide";
+    private string _occupantSummary = Loc.Get("board.cell.empty");
+    /// <summary>Description longue localisée des occupants (lue par NVDA).</summary>
     public string OccupantSummary
     {
         get => _occupantSummary;
         set { if (_occupantSummary != value) { _occupantSummary = value; OnPropertyChanged(); OnPropertyChanged(nameof(AutomationName)); } }
     }
 
+    private string _occupantGlyph = "";
+    /// <summary>Glyphe court pour l'affichage visuel (ex: "R1", "J2"). Vide si la case est vide.</summary>
+    public string OccupantGlyph
+    {
+        get => _occupantGlyph;
+        set { if (_occupantGlyph != value) { _occupantGlyph = value; OnPropertyChanged(); } }
+    }
+
     public string KindLabel => Cell.Kind switch
     {
         CellKind.Ring => Cell.RingPos.HasValue && Parcheesi.Core.BoardLayout.IsSafe(Cell.RingPos.Value)
-            ? $"Case {Cell.RingPos} sûre"
-            : $"Case {Cell.RingPos}",
-        CellKind.Lane => $"Couloir {Cell.Owner!.Value.Label()} case {Cell.LanePos! + 1} sur 7",
-        CellKind.Base => $"Base {Cell.Owner!.Value.Label()} slot {Cell.BaseSlot! + 1}",
-        CellKind.Home => "Maison centrale",
+            ? Loc.Format("board.kind.ring_safe", Cell.RingPos)
+            : Loc.Format("board.kind.ring", Cell.RingPos),
+        CellKind.Lane => Loc.Format("board.kind.lane", Cell.Owner!.Value.Label(), Cell.LanePos! + 1),
+        CellKind.Base => Loc.Format("board.kind.base", Cell.Owner!.Value.Label(), Cell.BaseSlot! + 1),
+        CellKind.Home => Loc.Get("board.kind.home"),
         _ => "",
     };
 

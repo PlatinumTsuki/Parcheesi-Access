@@ -10,6 +10,25 @@
   "color.bleu": "Bleu",
   "color.vert": "Vert",
 
+  "difficulty.facile": "Facile",
+  "difficulty.moyen": "Moyen",
+  "difficulty.difficile": "Difficile",
+
+  "board.cell.empty": "vide",
+  "board.cell.base_slot_empty": "slot vide",
+  "board.cell.home_empty": "aucun pion rentré",
+  "board.cell.piece_label": "pion {0} numéro {1}",
+  "board.cell.piece_separator": ", et ",
+  "board.cell.home_summary_singular": "{0} pion rentré : {1}",
+  "board.cell.home_summary_plural": "{0} pions rentrés : {1}",
+  "board.kind.ring_safe": "Case {0} sûre",
+  "board.kind.ring": "Case {0}",
+  "board.kind.lane": "Couloir {0} case {1} sur 7",
+  "board.kind.base": "Base {0} slot {1}",
+  "board.kind.home": "Maison centrale",
+
+  "error.save_failed": "Attention : la sauvegarde de la partie a échoué. La progression pourrait être perdue.",
+
   "personality.standard_short": "L'Ordinateur",
   "personality.aggressive_short": "L'Aggressive",
   "personality.prudent_short": "La Prudente",
@@ -184,8 +203,8 @@
   "endgame.summary_captures_made": "  • Captures réalisées : {0}",
   "endgame.summary_captures_received": "  • Captures subies : {0}",
   "endgame.summary_pieces_home": "  • Pions ramenés à la maison : {0} sur 4",
-  "endgame.victory_announce": "Victoire de {0} ! Classement : {1}. Tu as fait {2} capture(s) et ramené {3} pion(s).",
-  "endgame.defeat_announce": "Défaite, {0} a gagné. Classement : {1}.",
+  "endgame.victory_announce": "Bravo ! Victoire de {0} en {1} tours, {2} capture(s).",
+  "endgame.defeat_announce": "Défaite. {0} a gagné en {1} tours.",
   "endgame.ranking_entry": "{0}. {1}",
 
   "victory.triumph.1": "Le salon se lève. Applaudissements nourris !",

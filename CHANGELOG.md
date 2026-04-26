@@ -4,6 +4,31 @@ All notable changes to Parcheesi Access are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] — 2026-04-27
+
+Bug-fix release addressing accessibility, localization, and stability issues found after 1.0.0. No gameplay or feature changes.
+
+### Fixed
+
+- **Localization** — board cell announcements (square coordinates, lane positions, occupants) were always read in French even when the game was set to English or Spanish. NVDA now reads them in the active language.
+- **Localization** — the verbose game-start greeting embedded the raw difficulty name in French (`Facile` / `Moyen` / `Difficile`) regardless of the active language; now uses the localized label.
+- **AI personality lost after a turn timeout** — when the turn timer expired in auto-play mode, the next AI player's personality could be overwritten with neutral, causing it to play without its assigned style for the rest of the game.
+- **Resumed game ignored the turn timer** — reloading a saved game on a human turn left the player with unlimited time on that turn; the timer now starts immediately.
+- **End-of-game screen was unreadable** — keyboard shortcuts to replay the result, read final board state, statistics, achievements, opponents, journal, and help (R / K / L / M / J / P / H) were blocked on the post-game summary. They now work in read-only mode after the game ends.
+- **End-of-game announcement was spoken twice with overlap** — the post-game summary and the achievement notification were two separate announcements queued 2.5 seconds apart, causing NVDA to interrupt or skip one. They are now combined into a single announcement.
+
+### Changed
+
+- **Triumph win narration is more meaningful** — previously a single criterion (e.g. no captures suffered) was enough to trigger the highest-tier victory phrase and standing ovation. Now requires meeting at least 2 of 3 criteria (under 30 turns, against Hard AI, no captures suffered), so triumph narration is reserved for genuinely impressive games.
+- **End-of-game announcement is shorter** — the full ranking and per-game statistics stay in the on-screen summary panel; only the essential result is spoken, leaving the detail available via the read-board / read-stats keys.
+- **Save failure is now reported** — if saving the in-progress game fails (disk full, permissions, etc.), the game announces it once instead of failing silently.
+
+### Added
+
+- Diagnostic `audio_load.log` file written next to the executable if any embedded sound asset fails to load at startup. Empty / absent in normal operation.
+
+[1.0.1]: https://github.com/PlatinumTsuki/Parcheesi-Access/releases/tag/v1.0.1
+
 ## [1.0.0] — 2026-04-26
 
 First public release. The solo experience is feature-complete, distributable as a single self-contained Windows executable, and localized in three languages.

@@ -10,6 +10,25 @@
   "color.bleu": "Azul",
   "color.vert": "Verde",
 
+  "difficulty.facile": "Fácil",
+  "difficulty.moyen": "Medio",
+  "difficulty.difficile": "Difícil",
+
+  "board.cell.empty": "vacía",
+  "board.cell.base_slot_empty": "casilla vacía",
+  "board.cell.home_empty": "ninguna ficha en casa",
+  "board.cell.piece_label": "ficha de {0} número {1}",
+  "board.cell.piece_separator": ", y ",
+  "board.cell.home_summary_singular": "{0} ficha en casa: {1}",
+  "board.cell.home_summary_plural": "{0} fichas en casa: {1}",
+  "board.kind.ring_safe": "Casilla {0} segura",
+  "board.kind.ring": "Casilla {0}",
+  "board.kind.lane": "Pasillo {0} casilla {1} de 7",
+  "board.kind.base": "Base {0} hueco {1}",
+  "board.kind.home": "Casa central",
+
+  "error.save_failed": "Atención: el guardado de la partida ha fallado. El progreso puede perderse.",
+
   "personality.standard_short": "El Ordenador",
   "personality.aggressive_short": "La Agresiva",
   "personality.prudent_short": "La Prudente",
@@ -184,8 +203,8 @@
   "endgame.summary_captures_made": "  • Capturas realizadas: {0}",
   "endgame.summary_captures_received": "  • Capturas sufridas: {0}",
   "endgame.summary_pieces_home": "  • Fichas llevadas a casa: {0} de 4",
-  "endgame.victory_announce": "¡Victoria de {0}! Clasificación: {1}. Has hecho {2} captura(s) y has llevado {3} ficha(s) a casa.",
-  "endgame.defeat_announce": "Derrota, {0} ha ganado. Clasificación: {1}.",
+  "endgame.victory_announce": "¡Bravo! {0} ha ganado en {1} turnos, {2} captura(s).",
+  "endgame.defeat_announce": "Derrota. {0} ha ganado en {1} turnos.",
   "endgame.ranking_entry": "{0}. {1}",
 
   "victory.triumph.1": "El salón se levanta. ¡Aplausos atronadores!",
