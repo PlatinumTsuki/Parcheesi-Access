@@ -62,4 +62,4 @@ First public release. The solo experience is feature-complete, distributable as 
   - Self-contained single-file `.exe` build (~225 MB) — no .NET install required by end users.
   - All sounds, music, and language files embedded in the executable.
 
-[1.0.0]: https://github.com/PlatinumTsuki/parcheesi-access/releases/tag/v1.0.0
+[1.0.0]: https://github.com/PlatinumTsuki/Parcheesi-Access/releases/tag/v1.0.0

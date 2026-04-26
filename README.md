@@ -27,7 +27,7 @@ Parcheesi Access is a Windows desktop game that brings the classic Parcheesi (al
 
 ## Download
 
-Pre-built single-file Windows executables (~225 MB self-contained, no .NET install required) are attached to each release on the [Releases page](https://github.com/PlatinumTsuki/parcheesi-access/releases).
+Pre-built single-file Windows executables (~225 MB self-contained, no .NET install required) are attached to each release on the [Releases page](https://github.com/PlatinumTsuki/Parcheesi-Access/releases).
 
 ## Build from source
 
@@ -61,7 +61,7 @@ This produces a single `publish/Parcheesi-Access.exe` (~225 MB) that includes th
 ## Project structure
 
 ```
-parcheesi-access/
+Parcheesi-Access/
 ├── README.md
 ├── LICENSE              # GPL v3
 ├── CREDITS.md           # third-party asset attributions
@@ -126,4 +126,4 @@ The game source code is licensed under the **GNU General Public License v3.0**. 
 
 ## Reporting issues
 
-Bugs, feature requests, and feedback are welcome on the [Issues page](https://github.com/PlatinumTsuki/parcheesi-access/issues).
+Bugs, feature requests, and feedback are welcome on the [Issues page](https://github.com/PlatinumTsuki/Parcheesi-Access/issues).

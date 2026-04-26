@@ -142,7 +142,7 @@ KNOWN ISSUES
     "Windows protected your PC". Click "More info" then
     "Run anyway". This is normal for an unsigned .exe.
     The game is harmless and open source — the full source
-    is at https://github.com/PlatinumTsuki/parcheesi-access.
+    is at https://github.com/PlatinumTsuki/Parcheesi-Access.
 
   - If your screen reader stays silent, check that focus mode
     is active (NVDA+Space).
