@@ -16,6 +16,13 @@ public class MainViewModel : INotifyPropertyChanged
     private const int SpeedRunThreshold = 30;
     /// <summary>Seuil "tour rapide" pour la phrase contextuelle "course menée tambour battant".</summary>
     private const int FastWinThreshold = 50;
+    /// <summary>
+    /// Pause silencieuse insérée entre la fin du walk audio d'un coup et le début de l'action
+    /// suivante (TurnChange, pulses IA, fin de partie). Sert de "ponctuation auditive" — pattern
+    /// de sérialisation utilisé par les jeux audio tour par tour de référence (Manamon, Tactical
+    /// Battle, RS Games). Évite que l'IA "pense" pendant que les pions humains marchent encore.
+    /// </summary>
+    private const int PostMoveGapMs = 300;
 
     private CoreGame? _game;
     public CoreGame? Game => _game;
@@ -172,6 +179,10 @@ public class MainViewModel : INotifyPropertyChanged
 
     public MainViewModel()
     {
+        // Migre les anciens fichiers de données stockés à côté du .exe vers AppData
+        // (modèle "portable" → modèle "AppData partagé entre versions"). Idempotent.
+        UserDataPaths.MigrateFromLegacyIfNeeded();
+
         Settings = Settings.Load();
 
         // Localisation : si pas encore définie (premier lancement), auto-détection depuis la locale système.
@@ -191,13 +202,13 @@ public class MainViewModel : INotifyPropertyChanged
         Audio.MasterVolume = Settings.MasterVolume;
 
         // Diagnostic : si des sons embarqués ont échoué au préchargement (.exe cassé ou
-        // asset corrompu), trace ça dans audio_load.log à côté de l'.exe. Le fichier
-        // n'est créé que s'il y a au moins un échec.
+        // asset corrompu), trace ça dans audio_load.log dans le dossier de données utilisateur.
+        // Le fichier n'est créé que s'il y a au moins un échec.
         if (Audio.PreloadFailures.Count > 0)
         {
             try
             {
-                var path = Path.Combine(AppContext.BaseDirectory, "audio_load.log");
+                var path = UserDataPaths.Get("audio_load.log");
                 var content = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {Audio.PreloadFailures.Count} effet(s) audio en échec :\n"
                             + string.Join("\n", Audio.PreloadFailures.Select(f => "  - " + f));
                 File.WriteAllText(path, content);
@@ -413,7 +424,7 @@ public class MainViewModel : INotifyPropertyChanged
         return null;
     }
 
-    private static string SaveFilePath => Path.Combine(AppContext.BaseDirectory, "current_game.json");
+    private static string SaveFilePath => UserDataPaths.Get("current_game.json");
 
     public bool HasSavedGame() => File.Exists(SaveFilePath);
 
@@ -453,6 +464,23 @@ public class MainViewModel : INotifyPropertyChanged
         try { if (File.Exists(SaveFilePath)) File.Delete(SaveFilePath); } catch { }
     }
 
+    /// <summary>
+    /// Vrai si c'est au joueur LOCAL de jouer (= joueur courant humain en solo).
+    /// En multijoueur, ça deviendra _game.Current.Color == _localPlayerColor.
+    /// Garde-fou pour empêcher l'utilisateur d'agir sur le tour d'un autre joueur.
+    /// </summary>
+    private bool IsLocalTurn() =>
+        _game != null && !_game.Finished && !_game.Current.IsComputer;
+
+    /// <summary>
+    /// Annonce "ce n'est pas ton tour" + son d'erreur. Utilisé par les gardes.
+    /// </summary>
+    private void RejectNotYourTurn()
+    {
+        Announce(Loc.Get("error.not_your_turn"));
+        Audio.Play(SoundEffect.Error);
+    }
+
     public bool ResumeSavedGame()
     {
         try
@@ -479,6 +507,7 @@ public class MainViewModel : INotifyPropertyChanged
             _capturesReceivedThisGame = 0;
             _piecesHomeThisGame = 0;
             _statsRecordedForCurrentGame = false;
+            _recordedEvents.Clear(); // pas de replay possible avant que cette session enregistre des événements
 
             OnPropertyChanged(nameof(Board));
             Log(Loc.Format("game.resumed_log", snap.SavedAt.ToString("dd/MM HH:mm")));
@@ -545,7 +574,7 @@ public class MainViewModel : INotifyPropertyChanged
         ScheduleAIPulses(3, Settings.AIThinkPulseMs, () =>
         {
             if (_game == null || _game.Finished || _game.Current != current) return;
-            if (_game.AwaitingRoll) RollDice();
+            if (_game.AwaitingRoll) RollDice(fromAI: true);
             if (_game == null || _game.Finished || _game.Current != current) return;
             ScheduleNextAIMove(current);
         });
@@ -557,11 +586,16 @@ public class MainViewModel : INotifyPropertyChanged
         {
             if (_game == null || _game.Finished || _game.Current != aiPlayer) return;
             var action = ComputerPlayer.DecideNextAction(_game, AIDifficulty);
-            if (action == null) { EndTurnManually(); return; }
+            if (action == null) { EndTurnManually(fromAI: true); return; }
             SelectedPieceId = action.Piece.Id;
-            ApplyMove(action.Usage);
-            if (_game != null && !_game.Finished && _game.Current == aiPlayer && !_game.AwaitingRoll)
-                ScheduleNextAIMove(aiPlayer);
+            // On passe par le callback pour que la prochaine séquence "thinking pulses + coup"
+            // ne démarre qu'APRÈS la fin du walk audio + gap du coup courant. Sans ça, l'IA
+            // commencerait à "réfléchir" pendant qu'elle est encore en train de marcher.
+            ApplyMove(action.Usage, fromAI: true, onMoveAudioComplete: () =>
+            {
+                if (_game != null && !_game.Finished && _game.Current == aiPlayer && !_game.AwaitingRoll)
+                    ScheduleNextAIMove(aiPlayer);
+            });
         });
     }
 
@@ -731,7 +765,9 @@ public class MainViewModel : INotifyPropertyChanged
                     var action = ComputerPlayer.DecideNextAction(_game, AIDifficulty.Moyen);
                     if (action == null) { EndTurnManually(); break; }
                     SelectedPieceId = action.Piece.Id;
-                    ApplyMove(action.Usage);
+                    // deferTurnTransition: false → la transition de tour reste synchrone, sinon
+                    // la boucle ne pourrait pas tester _game.AwaitingRoll après chaque coup.
+                    ApplyMove(action.Usage, deferTurnTransition: false);
                 }
             }
             finally
@@ -770,6 +806,8 @@ public class MainViewModel : INotifyPropertyChanged
     public void StartGame(bool[] isComputerPerSlot, AIDifficulty difficulty = AIDifficulty.Moyen,
                           string?[]? customNames = null, AIPersonality?[]? personalities = null)
     {
+        StopReplay(announceEnd: false, silent: true);
+        _recordedEvents.Clear();
         _lastAiPerSlot = (bool[])isComputerPerSlot.Clone();
         _lastDifficulty = difficulty;
         _lastCustomNames = customNames?.ToArray();
@@ -813,7 +851,7 @@ public class MainViewModel : INotifyPropertyChanged
         // Réinitialise le fichier de log pour la nouvelle partie.
         try
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "last_game.log");
+            var path = UserDataPaths.Get("last_game.log");
             File.WriteAllText(path, Loc.Format("log.new_game_file_header", DateTime.Now) + "\n");
         }
         catch { }
@@ -873,8 +911,13 @@ public class MainViewModel : INotifyPropertyChanged
             StartTurnTimer();
     }
 
-    public void RollDice()
+    /// <param name="fromAI">
+    /// True quand l'appel vient de l'IA (ScheduleAITurn). Bypass le garde "pas ton tour"
+    /// car c'est légitime que l'IA lance les dés sur son propre tour.
+    /// </param>
+    public void RollDice(bool fromAI = false)
     {
+        if (!fromAI && !IsLocalTurn()) { RejectNotYourTurn(); return; }
         if (_game == null || !_game.AwaitingRoll)
         {
             Announce(Loc.Get("error.already_rolled"));
@@ -885,6 +928,9 @@ public class MainViewModel : INotifyPropertyChanged
         Audio.Play(SoundEffect.DiceShake, 0f, Settings.DiceVolume);
         var (d1, d2, isDouble) = _game.RollDice();
         Audio.Play(SoundEffect.DiceThrow, 0f, Settings.DiceVolume);
+        var humanLeavingBaseHinted = (d1 == 5 || d2 == 5 || d1 + d2 == 5)
+                                      && _game.Current.Pieces.Any(p => p.Status == PieceStatus.Base);
+        _recordedEvents.Add(new ReplayDiceRoll(_game.Current.Label, d1, d2, isDouble, humanLeavingBaseHinted));
         Log(Loc.Format("log.dice_roll", _game.Current.Label, d1, d2, isDouble ? Loc.Get("log.dice_roll_double_suffix") : ""));
         UpdateTurnInfo();
 
@@ -909,6 +955,7 @@ public class MainViewModel : INotifyPropertyChanged
             var detail = ExplainNoLegalMove(p, d1, d2);
             Log(Loc.Format("log.no_move_possible_passed", d1, d2, detail, NextPlayerName()));
             Announce(Loc.Format("announce.no_move_possible", d1, d2, detail));
+            _recordedEvents.Add(new ReplayNoLegalMove(p.Label, d1, d2));
             var t = _game.NextTurn();
             FinishTurnTransition(t);
             return;
@@ -933,6 +980,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public void SelectPiece(int id)
     {
+        if (!IsLocalTurn()) { RejectNotYourTurn(); return; }
         if (_game == null || _game.AwaitingRoll)
         {
             Announce(Loc.Get("error.roll_dice_first_short"));
@@ -983,6 +1031,7 @@ public class MainViewModel : INotifyPropertyChanged
     /// <summary>Aperçu d'un seul dé/bonus appliqué au pion sélectionné, sans rien appliquer.</summary>
     public void PreviewSingleDie(DiceUsage usage)
     {
+        if (!IsLocalTurn()) { RejectNotYourTurn(); return; }
         if (_game == null) { Announce(Loc.Get("error.no_game")); return; }
         if (_selectedPieceId == 0)
         {
@@ -1130,8 +1179,29 @@ public class MainViewModel : INotifyPropertyChanged
         return Loc.Get("preview.unknown");
     }
 
-    public void ApplyMove(DiceUsage usage)
+    /// <summary>
+    /// Applique un coup. Le walk audio se joue en arrière-plan, et la transition vers
+    /// le tour suivant (FinishTurnTransition / EndGame) est différée jusqu'à la fin du
+    /// walk + un petit gap silencieux — pattern de sérialisation pour que l'IA ne
+    /// commence pas à "réfléchir" pendant que les pions humains marchent encore.
+    /// </summary>
+    /// <param name="usage">Quel dé / bonus consommer.</param>
+    /// <param name="onMoveAudioComplete">
+    /// Callback invoqué après la fin du walk audio + gap + transition de tour, sur le thread UI.
+    /// Utilisé par <see cref="ScheduleNextAIMove"/> pour chaîner le prochain coup d'IA proprement.
+    /// </param>
+    /// <param name="deferTurnTransition">
+    /// Si true (défaut) : EndGame / FinishTurnTransition s'exécutent après le walk audio.
+    /// Si false : ils s'exécutent immédiatement (utilisé par <see cref="HandleTimeOut"/>
+    /// pour le cas où on enchaîne plusieurs ApplyMove dans une boucle synchrone).
+    /// </param>
+    /// <param name="fromAI">
+    /// True quand l'IA applique son propre coup (ScheduleNextAIMove). Bypass le garde
+    /// "pas ton tour" — c'est légitime que l'IA joue sur son tour.
+    /// </param>
+    public void ApplyMove(DiceUsage usage, Action? onMoveAudioComplete = null, bool deferTurnTransition = true, bool fromAI = false)
     {
+        if (!fromAI && !IsLocalTurn()) { RejectNotYourTurn(); return; }
         if (_game == null || _game.AwaitingRoll)
         {
             Announce(Loc.Get("error.roll_dice_first_short"));
@@ -1197,8 +1267,96 @@ public class MainViewModel : INotifyPropertyChanged
         var endPan = ComputePanForPiece(piece);
         var moveSound = ColorToMoveSound(piece.Color);
 
-        // Joue le walk-along de N pas en arrière-plan, à la vitesse + volume des réglages.
+        // Journal complet (gardé verbeux pour P et fichier log) — IMMÉDIAT, ne dépend pas du walk.
+        var fullMsg = Loc.Format("log.move_full", p.Label, piece.Id, steps, piece.Describe());
+        if (result.CaptureMessage != null) fullMsg += " " + result.CaptureMessage + Loc.Get("log.bonus_20_suffix");
+        if (result.BonusMessage != null) fullMsg += " " + result.BonusMessage + Loc.Get("log.bonus_10_suffix");
+        Log(fullMsg);
+
+        // Détection d'urgence : un adversaire vient-il de passer un palier de pions à la maison ?
+        CheckUrgencyTransitions();
+
+        // Annonce du résultat — IMMÉDIATE pour que l'utilisateur sache tout de suite ce qui
+        // s'est passé. Le walk audio joue en parallèle de l'annonce vocale, mais sera fini
+        // avant la transition de tour (sérialisation côté action, pas côté voix).
+        var announceMsg = Settings.VerboseAnnouncements ? fullMsg : BuildBriefMoveMessage(p, piece, steps, result);
+        if (Settings.VerboseAnnouncements)
+        {
+            if (result.CaptureMessage != null) announceMsg += Loc.Get("announce.bonus_apply_hint");
+            if (result.BonusMessage != null) announceMsg += Loc.Get("announce.bonus_apply_hint");
+        }
+        Announce(announceMsg);
+
+        // Enregistre l'événement pour le replay (sons + annonce courte rejouables)
+        var enteredLane = piece.Status == PieceStatus.Lane && wasOnRing;
+        var enteredSafe = piece.Status == PieceStatus.Ring && piece.Position.HasValue
+                          && Parcheesi.Core.BoardLayout.IsSafe(piece.Position.Value)
+                          && !wasOnSafeBefore;
+        _recordedEvents.Add(new ReplayMove(
+            PlayerLabel: p.Label,
+            Color: piece.Color,
+            PieceId: piece.Id,
+            Steps: steps,
+            WasInBase: wasInBase,
+            ReachedHome: result.ReachedHome,
+            Captured: result.CaptureMessage != null,
+            EnteredLane: enteredLane,
+            EnteredSafe: enteredSafe,
+            StartPan: startPan,
+            EndPan: endPan,
+            Announce: announceMsg
+        ));
+
+        Board?.RefreshOccupancy(_game);
+        UpdateTurnInfo();
+        SaveCurrentGame();
+
+        // Calcule la transition à effectuer après le walk audio. SelectedPieceId = 0 reste
+        // immédiat dans le cas "le tour continue" pour ne pas écraser une pré-sélection que
+        // l'utilisateur ferait pendant la lecture du walk.
+        Action? postWalkAction = null;
+        if (deferTurnTransition)
+        {
+            if (_game.Finished)
+            {
+                postWalkAction = () =>
+                {
+                    if (_game == null || !_game.Finished) return;
+                    EndGame();
+                    DeleteSavedGame();
+                };
+            }
+            else if (_game.TurnIsOver())
+            {
+                postWalkAction = () =>
+                {
+                    if (_game == null || _game.Finished) return;
+                    var t = _game.NextTurn();
+                    FinishTurnTransition(t);
+                };
+            }
+            else if (!_game.HasAnyLegalMove())
+            {
+                Log(Loc.Get("log.no_more_moves"));
+                Announce(Loc.Get("announce.no_more_moves"));
+                postWalkAction = () =>
+                {
+                    if (_game == null || _game.Finished) return;
+                    var t = _game.NextTurn();
+                    FinishTurnTransition(t);
+                };
+            }
+            else
+            {
+                SelectedPieceId = 0;
+            }
+        }
+
+        // Walk audio + son d'événement post-walk + gap silencieux + transition différée + callback.
+        // Tout sur un seul Task pour garantir la sérialisation : pas de chevauchement entre la fin
+        // du walk d'un coup et le début du suivant (TurnChange / pulses IA / fin de partie).
         var settingsRef = Settings;
+        var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
             if (wasInBase)
@@ -1224,52 +1382,44 @@ public class MainViewModel : INotifyPropertyChanged
                      && Parcheesi.Core.BoardLayout.IsSafe(piece.Position.Value)
                      && !wasOnSafeBefore)
                 Audio.Play(SoundEffect.SafeEntry, endPan, settingsRef.EventVolume * 0.75f);
+
+            // Gap silencieux — ponctuation auditive entre la fin du coup et le début du suivant.
+            await Task.Delay(PostMoveGapMs);
+
+            // Transition + callback exécutés sur le thread UI (Game state, timers, etc.).
+            await dispatcher.InvokeAsync(() =>
+            {
+                postWalkAction?.Invoke();
+                onMoveAudioComplete?.Invoke();
+            });
         });
 
-        // Journal complet (gardé verbeux pour P et fichier log)
-        var fullMsg = Loc.Format("log.move_full", p.Label, piece.Id, steps, piece.Describe());
-        if (result.CaptureMessage != null) fullMsg += " " + result.CaptureMessage + Loc.Get("log.bonus_20_suffix");
-        if (result.BonusMessage != null) fullMsg += " " + result.BonusMessage + Loc.Get("log.bonus_10_suffix");
-        Log(fullMsg);
-
-        // Détection d'urgence : un adversaire vient-il de passer un palier de pions à la maison ?
-        CheckUrgencyTransitions();
-
-        // Mode verbeux = la version longue du journal. Mode concis = brief.
-        var announceMsg = Settings.VerboseAnnouncements ? fullMsg : BuildBriefMoveMessage(p, piece, steps, result);
-        if (Settings.VerboseAnnouncements)
+        // Cas synchrone (HandleTimeOut auto-play loop) : on garde le comportement d'avant pour
+        // que la boucle puisse tester _game.AwaitingRoll après chaque ApplyMove.
+        if (!deferTurnTransition)
         {
-            if (result.CaptureMessage != null) announceMsg += Loc.Get("announce.bonus_apply_hint");
-            if (result.BonusMessage != null) announceMsg += Loc.Get("announce.bonus_apply_hint");
-        }
-        Announce(announceMsg);
-
-        Board?.RefreshOccupancy(_game);
-        UpdateTurnInfo();
-        SaveCurrentGame();
-
-        if (_game.Finished)
-        {
-            EndGame();
-            DeleteSavedGame();
-            return;
-        }
-
-        if (_game.TurnIsOver())
-        {
-            var t = _game.NextTurn();
-            FinishTurnTransition(t);
-        }
-        else if (!_game.HasAnyLegalMove())
-        {
-            Log(Loc.Get("log.no_more_moves"));
-            Announce(Loc.Get("announce.no_more_moves"));
-            var t = _game.NextTurn();
-            FinishTurnTransition(t);
-        }
-        else
-        {
-            SelectedPieceId = 0;
+            if (_game.Finished)
+            {
+                EndGame();
+                DeleteSavedGame();
+                return;
+            }
+            if (_game.TurnIsOver())
+            {
+                var t = _game.NextTurn();
+                FinishTurnTransition(t);
+            }
+            else if (!_game.HasAnyLegalMove())
+            {
+                Log(Loc.Get("log.no_more_moves"));
+                Announce(Loc.Get("announce.no_more_moves"));
+                var t = _game.NextTurn();
+                FinishTurnTransition(t);
+            }
+            else
+            {
+                SelectedPieceId = 0;
+            }
         }
     }
 
@@ -1312,11 +1462,17 @@ public class MainViewModel : INotifyPropertyChanged
         _ => SoundEffect.PieceMoveRouge,
     };
 
-    public void EndTurnManually()
+    /// <param name="fromAI">
+    /// True quand l'IA déclenche le passage de tour (par exemple aucun coup légal
+    /// possible dans ScheduleNextAIMove). Bypass le garde "pas ton tour".
+    /// </param>
+    public void EndTurnManually(bool fromAI = false)
     {
+        if (!fromAI && !IsLocalTurn()) { RejectNotYourTurn(); return; }
         if (_game == null) return;
         Log(Loc.Format("log.passed_turn", _game.Current.Label));
         Announce(Loc.Get("announce.passed_turn"));
+        _recordedEvents.Add(new ReplayTurnPassed(_game.Current.Label, PenaltyMessage: null));
         var t = _game.NextTurn();
         FinishTurnTransition(t);
     }
@@ -1328,6 +1484,8 @@ public class MainViewModel : INotifyPropertyChanged
         {
             Announce(t.PenaltyMessage);
             Audio.Play(SoundEffect.Error);
+            // Pénalité triple double : on l'enregistre comme un "tour passé" coloré pour le replay
+            _recordedEvents.Add(new ReplayTurnPassed(_game!.Current.Label, t.PenaltyMessage));
         }
         SelectedPieceId = 0;
         Board?.RefreshOccupancy(_game!);
@@ -1338,6 +1496,7 @@ public class MainViewModel : INotifyPropertyChanged
                 ? _game.Current.Label + Loc.Get("announce.double_rerolled_ai_suffix")
                 : _game.Current.Label;
             Announce(Loc.Format("announce.double_rerolled", who));
+            _recordedEvents.Add(new ReplayTurnChange(_game.Current.Label, Rerolled: true));
         }
         else
         {
@@ -1346,6 +1505,10 @@ public class MainViewModel : INotifyPropertyChanged
                 Announce(Loc.Format("announce.next_turn_ai", _game.Current.Label));
             else
                 Announce(Loc.Format("announce.next_turn_human", _game.Current.Label));
+            // Si la partie est finie, NextTurn n'aura pas changé de joueur — on n'enregistre pas
+            // de transition fantôme. Sinon on enregistre la transition normale.
+            if (!_game.Finished)
+                _recordedEvents.Add(new ReplayTurnChange(_game.Current.Label, Rerolled: false));
         }
 
         if (_game!.Current.IsComputer)
@@ -1404,6 +1567,9 @@ public class MainViewModel : INotifyPropertyChanged
         Log(msg);
         Announce(msg);
         TurnInfo = msg;
+
+        // Enregistre l'événement de fin pour le replay
+        _recordedEvents.Add(new ReplayGameEnd(winner, humanWon, msg));
 
         // Bascule sur l'écran de fin (le menu principal n'est pas encore réaffiché).
         IsInGame = false;
@@ -1500,6 +1666,7 @@ public class MainViewModel : INotifyPropertyChanged
     /// <summary>Quitte la partie ou l'écran de fin pour revenir au menu principal.</summary>
     public void ReturnToMenu()
     {
+        StopReplay(announceEnd: false, silent: true);
         StopTurnTimer();
         StopAllAITimers();
         Audio.StopAllAmbientLoops();
@@ -1538,6 +1705,7 @@ public class MainViewModel : INotifyPropertyChanged
         Stats.CapturesMade += _capturesMadeThisGame;
         Stats.CapturesReceived += _capturesReceivedThisGame;
         Stats.PiecesBroughtHome += _piecesHomeThisGame;
+        if (!humanWon) Stats.PiecesHomeOnDefeats += _piecesHomeThisGame;
         Stats.TotalTurnsPlayed += _turnsThisGame;
         if (humanWon && (Stats.FewestTurnsToWin == null || _turnsThisGame < Stats.FewestTurnsToWin))
             Stats.FewestTurnsToWin = _turnsThisGame;
@@ -1644,6 +1812,219 @@ public class MainViewModel : INotifyPropertyChanged
         Announce(Loc.Get("help.full"));
     }
 
+    // ---------- REPLAY ACCÉLÉRÉ DE LA DERNIÈRE PARTIE ----------
+    //
+    // Source des événements : LogEntries, déjà rempli pendant la partie par Log() à
+    // chaque coup, lancer de dés, transition de tour, etc. (visible aussi dans le
+    // panneau Journal). Le replay énumère ces entrées avec une pause entre chacune.
+    //
+    // Disponible uniquement sur l'écran de fin (touche V).
+    // Espace = passer immédiatement à l'événement suivant.
+    // Échap = sortir du replay.
+
+    private System.Windows.Threading.DispatcherTimer? _replayTimer;
+    private List<ReplayEvent> _replayEvents = new();
+    /// <summary>Buffer des événements typés enregistrés pendant la partie en cours, pour le replay accéléré.</summary>
+    private readonly List<ReplayEvent> _recordedEvents = new();
+    private int _replayIndex = 0;
+
+    /// <summary>Vrai pendant qu'un replay est en cours (les autres touches sont gates par MainWindow).</summary>
+    public bool IsReplaying => _replayTimer != null;
+
+    /// <summary>
+    /// Cadence de marche accélérée pendant le replay : 50 ms par case au lieu de 110 ms.
+    /// Le joueur a déjà entendu la version "complète" pendant la partie ; le replay
+    /// est pour la revue, pas pour la première écoute.
+    /// </summary>
+    private const int ReplayWalkStepDelayMs = 50;
+
+    /// <summary>Démarre un replay accéléré de la dernière partie. Touche V sur l'écran de fin.</summary>
+    public void StartReplay()
+    {
+        if (_recordedEvents.Count == 0)
+        {
+            Announce(Loc.Get("replay.empty"));
+            return;
+        }
+        StopReplay(announceEnd: false, silent: true); // au cas où un replay précédent traînerait
+        _replayEvents = _recordedEvents.ToList();
+        _replayIndex = 0;
+        Announce(Loc.Format("replay.start", _replayEvents.Count));
+        _replayTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(2500), // un peu plus long pour laisser le temps aux sons
+        };
+        _replayTimer.Tick += (_, _) => AdvanceReplay();
+        OnPropertyChanged(nameof(IsReplaying));
+        _replayTimer.Start();
+    }
+
+    private void AdvanceReplay()
+    {
+        if (_replayTimer == null) return;
+        if (_replayIndex >= _replayEvents.Count)
+        {
+            StopReplay(announceEnd: true);
+            return;
+        }
+        var ev = _replayEvents[_replayIndex];
+        _replayIndex++;
+        DispatchReplayEvent(ev);
+    }
+
+    /// <summary>Joue les sons + annonce courte pour un événement de replay.</summary>
+    private void DispatchReplayEvent(ReplayEvent ev)
+    {
+        switch (ev)
+        {
+            case ReplayDiceRoll d:
+                Audio.Play(SoundEffect.DiceShake, 0f, Settings.DiceVolume);
+                Audio.Play(SoundEffect.DiceThrow, 0f, Settings.DiceVolume);
+                if (d.HumanLeavingBaseHinted) Audio.Play(SoundEffect.CanLeaveBase, 0f, 0.7f);
+                Announce(Loc.Format("replay.dice_announce", d.PlayerLabel, d.D1, d.D2,
+                    d.IsDouble ? Loc.Get("announce.dice_double_short") : ""));
+                break;
+
+            case ReplayMove m:
+                _ = Task.Run(async () =>
+                {
+                    var moveSound = ColorToMoveSound(m.Color);
+                    if (m.WasInBase)
+                    {
+                        Audio.Play(SoundEffect.BaseExit, m.EndPan, Settings.EventVolume);
+                        await Task.Delay(150);
+                        Audio.Play(moveSound, m.EndPan, Settings.MoveVolume);
+                    }
+                    else
+                    {
+                        await Audio.PlayWalkAsync(moveSound, m.StartPan, m.EndPan, m.Steps,
+                            delayMs: ReplayWalkStepDelayMs, volume: Settings.MoveVolume);
+                    }
+                    if (m.Captured) Audio.Play(SoundEffect.Capture, m.EndPan, Settings.EventVolume);
+                    else if (m.ReachedHome) Audio.Play(SoundEffect.HomeArrive, m.EndPan, Settings.EventVolume);
+                    else if (m.EnteredLane) Audio.Play(SoundEffect.LaneEntry, m.EndPan, Settings.EventVolume * 0.85f);
+                    else if (m.EnteredSafe) Audio.Play(SoundEffect.SafeEntry, m.EndPan, Settings.EventVolume * 0.75f);
+                });
+                Announce(m.Announce);
+                break;
+
+            case ReplayNoLegalMove n:
+                Announce(Loc.Format("replay.no_legal_announce", n.PlayerLabel, n.D1, n.D2));
+                break;
+
+            case ReplayTurnPassed t:
+                Audio.Play(SoundEffect.TurnChange);
+                if (t.PenaltyMessage != null)
+                {
+                    Audio.Play(SoundEffect.Error);
+                    Announce(t.PenaltyMessage);
+                }
+                else
+                {
+                    Announce(Loc.Format("replay.turn_passed_announce", t.PlayerLabel));
+                }
+                break;
+
+            case ReplayTurnChange c:
+                if (c.Rerolled)
+                    Announce(Loc.Format("replay.rerolled_announce", c.NextPlayerLabel));
+                else
+                {
+                    Audio.Play(SoundEffect.TurnChange);
+                    Announce(Loc.Format("replay.turn_change_announce", c.NextPlayerLabel));
+                }
+                break;
+
+            case ReplayGameEnd e:
+                Audio.Play(SoundEffect.Victory);
+                if (e.HumanWon)
+                    Audio.Play(SoundEffect.PoliteApplause, 0f, 0.5f);
+                Announce(e.FullEndAnnounce);
+                break;
+        }
+    }
+
+    /// <summary>Passe à l'événement suivant immédiatement (touche Espace).</summary>
+    public void NextReplayEvent()
+    {
+        if (_replayTimer == null) return;
+        _replayTimer.Stop();
+        AdvanceReplay();
+        _replayTimer?.Start(); // peut être nul si AdvanceReplay a fini le replay
+    }
+
+    /// <summary>Arrête le replay (touche Échap, ou auto-fin).</summary>
+    public void StopReplay(bool announceEnd = false, bool silent = false)
+    {
+        if (_replayTimer == null) return;
+        _replayTimer.Stop();
+        _replayTimer = null;
+        _replayEvents.Clear();
+        _replayIndex = 0;
+        OnPropertyChanged(nameof(IsReplaying));
+        if (silent) return;
+        Announce(announceEnd ? Loc.Get("replay.end") : Loc.Get("replay.interrupted"));
+    }
+
+    /// <summary>
+    /// Énumère uniquement les touches utiles dans le contexte courant (au lieu de tout
+    /// le bloc d'aide). Remplit la touche F1 — utile pour les nouveaux utilisateurs qui
+    /// n'ont pas encore mémorisé toutes les touches du jeu.
+    /// </summary>
+    public void ReadContextualKeys()
+    {
+        // Tutoriel : prioritaire car bloque les autres actions
+        if (TutorialIsRunning)
+        {
+            Announce(Loc.Get("context.tutorial"));
+            return;
+        }
+        // Écran de fin : seulement les touches read-only
+        if (IsInEndScreen)
+        {
+            Announce(Loc.Get("context.end_screen"));
+            return;
+        }
+        // Pas en jeu (ex: menu) : on ne dit rien d'utile, fallback sur l'aide générale
+        if (_game == null || !IsInGame)
+        {
+            Announce(Loc.Get("help.full"));
+            return;
+        }
+        // Pause : seulement F2 et R
+        if (IsPaused)
+        {
+            Announce(Loc.Get("context.paused"));
+            return;
+        }
+        // Tour adversaire : pas d'action, juste les lectures passives
+        if (_game.Current.IsComputer)
+        {
+            Announce(Loc.Get("context.ai_turn"));
+            return;
+        }
+        // Bonus disponible : on insiste sur B (touche dédiée à l'application du bonus)
+        if (_game.Bonus > 0 && _selectedPieceId != 0)
+        {
+            Announce(Loc.Format("context.piece_selected_with_bonus", _game.Bonus, _selectedPieceId));
+            return;
+        }
+        // Avant le lancer
+        if (_game.AwaitingRoll)
+        {
+            Announce(Loc.Get("context.awaiting_roll"));
+            return;
+        }
+        // Dés lancés mais pas encore de pion choisi
+        if (_selectedPieceId == 0)
+        {
+            Announce(Loc.Get("context.no_piece_selected"));
+            return;
+        }
+        // Pion sélectionné, application des dés
+        Announce(Loc.Format("context.piece_selected_normal", _selectedPieceId));
+    }
+
     public void ReadRecentLog()
     {
         if (LogEntries.Count == 0) { Announce(Loc.Get("log.empty")); return; }
@@ -1732,7 +2113,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         try
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "last_game.log");
+            var path = UserDataPaths.Get("last_game.log");
             File.AppendAllText(path, $"[{DateTime.Now:HH:mm:ss}] {entry}\n");
         }
         catch { /* Ne pas planter le jeu si le log fichier échoue. */ }

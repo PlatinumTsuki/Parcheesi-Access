@@ -15,6 +15,12 @@ public class GameStats
     public int CapturesMade { get; set; }
     public int CapturesReceived { get; set; }
     public int PiecesBroughtHome { get; set; }
+    /// <summary>
+    /// Cumul des pions ramenés à la maison uniquement sur les parties perdues.
+    /// Permet d'afficher une moyenne de progression même en défaite (un nouveau joueur
+    /// qui perd 10 fois mais améliore sa moyenne de 1 à 3 pions saura qu'il progresse).
+    /// </summary>
+    public int PiecesHomeOnDefeats { get; set; }
     public int? FewestTurnsToWin { get; set; }
     public int TotalTurnsPlayed { get; set; }
     public DateTime? LastPlayed { get; set; }
@@ -37,8 +43,9 @@ public class GameStats
 
     public double WinRate => GamesPlayed == 0 ? 0 : (double)GamesWon / GamesPlayed;
     public double AverageTurnsPerGame => GamesPlayed == 0 ? 0 : (double)TotalTurnsPlayed / GamesPlayed;
+    public double AveragePiecesHomeOnDefeats => GamesLost == 0 ? 0 : (double)PiecesHomeOnDefeats / GamesLost;
 
-    private static string FilePath => Path.Combine(AppContext.BaseDirectory, "stats.json");
+    private static string FilePath => UserDataPaths.Get("stats.json");
 
     public static GameStats Load()
     {
@@ -77,6 +84,8 @@ public class GameStats
             Loc.Format("stats.average_turns", avgTurns),
         };
         if (FewestTurnsToWin.HasValue) parts.Add(Loc.Format("stats.best_record", FewestTurnsToWin));
+        if (GamesLost > 0)
+            parts.Add(Loc.Format("stats.avg_pieces_home_defeats", $"{AveragePiecesHomeOnDefeats:F1}"));
 
         // Détail par niveau de difficulté
         var byDifficulty = new List<string>();

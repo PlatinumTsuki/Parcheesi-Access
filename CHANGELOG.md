@@ -4,6 +4,27 @@ All notable changes to Parcheesi Access are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-04-27
+
+This release brings audio polish, accessibility improvements, a game replay feature, and switches user data storage to the standard `%APPDATA%` location so progress is preserved across versions.
+
+### Added
+
+- **Accelerated game replay** (V key on the post-game screen): re-plays the entire game with the original audio (dice shake/throw, walk sounds with stereo pan, captures, turn changes, applause) at a faster pace. Press Space to skip to the next event, Escape to exit. Walk audio runs at 50 ms per square (vs 110 ms in-game).
+- **Contextual keyboard help** (F1 key in-game and on the post-game screen): announces only the keys relevant to the current state (awaiting roll, choosing a piece, applying a die, opponent's turn, paused, end screen, tutorial). Complements the full H help without replacing it.
+- **Average pieces home on defeats** statistic: visible in the stats summary. Helps new players gauge their progression even when losing.
+
+### Changed
+
+- **User data is now stored in `%APPDATA%\Parcheesi-Access\`** instead of next to the executable. Settings, statistics, achievements, current saved game, and logs are now shared across every installation of the game on the same Windows user account — installing a new version no longer resets your progress. On first launch, existing data next to the `.exe` is automatically copied to the new location (originals are kept intact for rollback).
+- **Audio is now serialized between actions**: walk audio of a move finishes before the next action's audio begins (turn change, opponent thinking, end-of-game applause). Adopts the standard "serialisation" pattern of turn-based audio games (Manamon, Tactical Battle, RS Games), with a 300 ms silent gap as auditory punctuation between events.
+
+### Fixed
+
+- **Player input on opponent's turn**: pressing dice / piece-selection / move keys (Space, A/Z/S/B, 1-4, T) during the opponent's turn no longer interferes with their play. The game now politely announces "It's not your turn to play" instead of accidentally rolling dice for the opponent or moving their piece.
+
+[1.1.0]: https://github.com/PlatinumTsuki/Parcheesi-Access/releases/tag/v1.1.0
+
 ## [1.0.1] — 2026-04-27
 
 Bug-fix release addressing accessibility, localization, and stability issues found after 1.0.0. No gameplay or feature changes.

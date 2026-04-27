@@ -102,7 +102,7 @@ public class Settings : INotifyPropertyChanged
 
     // --- Persistance ---
 
-    private static string FilePath => Path.Combine(AppContext.BaseDirectory, "settings.json");
+    private static string FilePath => UserDataPaths.Get("settings.json");
 
     public static Settings Load()
     {

@@ -27,6 +27,10 @@
 # --- Generated release output (built by `dotnet publish` then assembled by hand) ---
 release/publish/
 release/*.zip
+release/Parcheesi-Access-v*/
+
+# --- Audio diagnostic log (only created if a sound asset fails to load) ---
+**/audio_load.log
 
 # --- OS junk ---
 Thumbs.db

@@ -35,7 +35,7 @@ public class Achievements
         new("personality_master", Loc.Get("achievement.personality_master.name"), Loc.Get("achievement.personality_master.desc")),
     };
 
-    private static string FilePath => Path.Combine(AppContext.BaseDirectory, "achievements.json");
+    private static string FilePath => UserDataPaths.Get("achievements.json");
 
     public static Achievements Load()
     {

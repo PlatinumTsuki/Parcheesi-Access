@@ -28,6 +28,27 @@
   "board.kind.home": "Maison centrale",
 
   "error.save_failed": "Attention : la sauvegarde de la partie a échoué. La progression pourrait être perdue.",
+  "error.not_your_turn": "Ce n'est pas à ton tour de jouer.",
+
+  "context.tutorial": "Tutoriel en cours : Espace pour passer à l'étape suivante, Échap pour quitter.",
+  "context.paused": "Partie en pause. F2 pour reprendre, R pour relire la dernière annonce.",
+  "context.ai_turn": "Tour de l'adversaire, attends. R pour relire la dernière annonce, L pour relire le plateau, J pour les adversaires.",
+  "context.end_screen": "Fin de partie. Touches en lecture : R relire, K stats, L plateau, M succès, J adversaires, P journal, H aide complète, V replay accéléré de la partie. Boutons à l'écran : Rejouer, Nouvelle partie, Voir les stats, Quitter.",
+  "context.awaiting_roll": "À toi de jouer. Espace pour lancer les dés. T pour passer le tour. H pour l'aide complète.",
+  "context.no_piece_selected": "Dés lancés. Choisis un pion avec 1, 2, 3 ou 4. T pour passer le tour. H pour l'aide complète.",
+  "context.piece_selected_normal": "Pion {0} sélectionné. A pour dé 1, Z pour dé 2, S pour la somme des deux dés. Maj + touche pour aperçu. 1 à 4 pour changer de pion. T pour passer.",
+  "context.piece_selected_with_bonus": "Bonus de {0} cases disponible. Pion {1} sélectionné. B pour appliquer le bonus. 1 à 4 pour changer de pion.",
+
+  "replay.start": "Replay de la partie. {0} événements. Espace pour passer au suivant, Échap pour quitter.",
+  "replay.empty": "Aucun événement à rejouer pour cette partie.",
+  "replay.end": "Fin du replay.",
+  "replay.interrupted": "Replay interrompu.",
+  "replay.event_format": "Événement {0} sur {1} : {2}",
+  "replay.dice_announce": "{0} : {1} et {2}{3}.",
+  "replay.no_legal_announce": "{0} : {1} et {2}, aucun coup légal, tour passé.",
+  "replay.turn_passed_announce": "{0} passe son tour.",
+  "replay.rerolled_announce": "{0} rejoue.",
+  "replay.turn_change_announce": "Au tour de {0}.",
 
   "personality.standard_short": "L'Ordinateur",
   "personality.aggressive_short": "L'Aggressive",
@@ -282,6 +303,7 @@
   "stats.pieces_home": "Pions ramenés à la maison : {0}",
   "stats.average_turns": "Tours moyens par partie : {0}",
   "stats.best_record": "Meilleur record : victoire en {0} tours",
+  "stats.avg_pieces_home_defeats": "Pions ramenés en moyenne sur défaite : {0} sur 4",
   "stats.by_difficulty_easy": "Facile : {0} sur {1}",
   "stats.by_difficulty_medium": "Moyen : {0} sur {1}",
   "stats.by_difficulty_hard": "Difficile : {0} sur {1}",
@@ -310,7 +332,7 @@
   "turn_info.dice_used_suffix": " (utilisé)",
   "turn_info.double_marker": "Double !",
 
-  "crash.message": "Une erreur est survenue dans Parcheesi Access :\n\n{0}\n\n(Détails écrits dans crash.log à côté de l'application.)",
+  "crash.message": "Une erreur est survenue dans Parcheesi Access :\n\n{0}\n\n(Détails écrits dans crash.log dans %APPDATA%\\Parcheesi-Access\\.)",
   "crash.title": "Erreur",
 
   "xaml.window_automation_name": "Parcheesi Access — Jeu de Parcheesi accessible",

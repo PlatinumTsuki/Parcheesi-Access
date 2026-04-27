@@ -657,6 +657,15 @@ public partial class MainWindow : Window
         // (relire le résumé, le plateau final, les stats…) sans aucune action de jeu.
         if (_vm.IsInEndScreen)
         {
+            // Pendant un replay accéléré, Espace = suivant, Échap = sortir, autres touches bloquées
+            // (pour ne pas que le replay soit pollué par d'autres lectures concurrentes).
+            if (_vm.IsReplaying)
+            {
+                if (e.Key == Key.Space) { _vm.NextReplayEvent(); e.Handled = true; return; }
+                if (e.Key == Key.Escape) { _vm.StopReplay(); e.Handled = true; return; }
+                e.Handled = true; // bloque les autres touches
+                return;
+            }
             switch (e.Key)
             {
                 case Key.R: _vm.ReplayLastAnnouncement(); e.Handled = true; return;
@@ -666,6 +675,8 @@ public partial class MainWindow : Window
                 case Key.J: _vm.ReadOpponents(); e.Handled = true; return;
                 case Key.P: _vm.ReadRecentLog(); e.Handled = true; return;
                 case Key.H: _vm.ReadHelp(); e.Handled = true; return;
+                case Key.F1: _vm.ReadContextualKeys(); e.Handled = true; return;
+                case Key.V: _vm.StartReplay(); e.Handled = true; return;
             }
             return;
         }
@@ -718,6 +729,7 @@ public partial class MainWindow : Window
             case Key.I: _vm.ReadSelectedPieceDetails(); e.Handled = true; return;
             case Key.C: _vm.GiveTacticalAdvice(); e.Handled = true; return;
             case Key.M: _vm.ReadAchievements(); e.Handled = true; return;
+            case Key.F1: _vm.ReadContextualKeys(); e.Handled = true; return;
             case Key.F2: _vm.TogglePause(); e.Handled = true; return;
             case Key.F3: _vm.QueryTimeRemaining(); e.Handled = true; return;
             case Key.T: _vm.EndTurnManually(); e.Handled = true; return;

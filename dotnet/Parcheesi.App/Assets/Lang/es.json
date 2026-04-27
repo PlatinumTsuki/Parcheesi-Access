@@ -28,6 +28,27 @@
   "board.kind.home": "Casa central",
 
   "error.save_failed": "Atención: el guardado de la partida ha fallado. El progreso puede perderse.",
+  "error.not_your_turn": "No es tu turno de jugar.",
+
+  "context.tutorial": "Tutorial en curso: Espacio para pasar al siguiente paso, Escape para salir.",
+  "context.paused": "Partida en pausa. F2 para reanudar, R para repetir el último anuncio.",
+  "context.ai_turn": "Turno del adversario, espera. R para repetir el último anuncio, L para leer el tablero, J para los adversarios.",
+  "context.end_screen": "Fin de partida. Teclas de lectura: R repetir, K estadísticas, L tablero, M logros, J adversarios, P diario, H ayuda completa, V repetición acelerada de la partida. Botones en pantalla: Repetir, Nueva partida, Ver estadísticas, Salir.",
+  "context.awaiting_roll": "Tu turno. Pulsa Espacio para tirar los dados. T para saltar el turno. H para la ayuda completa.",
+  "context.no_piece_selected": "Dados tirados. Elige una ficha con 1, 2, 3 o 4. T para saltar el turno. H para la ayuda completa.",
+  "context.piece_selected_normal": "Ficha {0} seleccionada. A para dado 1, Z para dado 2, S para la suma de los dos dados. Mayús + tecla para vista previa. 1 a 4 para cambiar de ficha. T para saltar.",
+  "context.piece_selected_with_bonus": "Bonus de {0} casillas disponible. Ficha {1} seleccionada. B para aplicar el bonus. 1 a 4 para cambiar de ficha.",
+
+  "replay.start": "Repetición de la partida. {0} eventos. Espacio para pasar al siguiente, Escape para salir.",
+  "replay.empty": "Ningún evento que repetir para esta partida.",
+  "replay.end": "Fin de la repetición.",
+  "replay.interrupted": "Repetición interrumpida.",
+  "replay.event_format": "Evento {0} de {1}: {2}",
+  "replay.dice_announce": "{0}: {1} y {2}{3}.",
+  "replay.no_legal_announce": "{0}: {1} y {2}, ningún movimiento legal, turno pasado.",
+  "replay.turn_passed_announce": "{0} pasa su turno.",
+  "replay.rerolled_announce": "{0} vuelve a jugar.",
+  "replay.turn_change_announce": "Turno de {0}.",
 
   "personality.standard_short": "El Ordenador",
   "personality.aggressive_short": "La Agresiva",
@@ -282,6 +303,7 @@
   "stats.pieces_home": "Fichas llevadas a casa: {0}",
   "stats.average_turns": "Turnos medios por partida: {0}",
   "stats.best_record": "Mejor récord: victoria en {0} turnos",
+  "stats.avg_pieces_home_defeats": "Fichas en casa de media en derrotas: {0} de 4",
   "stats.by_difficulty_easy": "Fácil: {0} de {1}",
   "stats.by_difficulty_medium": "Medio: {0} de {1}",
   "stats.by_difficulty_hard": "Difícil: {0} de {1}",
@@ -310,7 +332,7 @@
   "turn_info.dice_used_suffix": " (usado)",
   "turn_info.double_marker": "¡Doble!",
 
-  "crash.message": "Se ha producido un error en Parcheesi Access:\n\n{0}\n\n(Detalles escritos en crash.log junto a la aplicación.)",
+  "crash.message": "Se ha producido un error en Parcheesi Access:\n\n{0}\n\n(Detalles escritos en crash.log en %APPDATA%\\Parcheesi-Access\\.)",
   "crash.title": "Error",
 
   "xaml.window_automation_name": "Parcheesi Access — Juego de Parchís accesible",

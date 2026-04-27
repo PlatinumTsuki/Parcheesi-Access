@@ -33,7 +33,7 @@ public partial class App : Application
         if (ex == null) return;
         try
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "crash.log");
+            var path = UserDataPaths.Get("crash.log");
             File.AppendAllText(path,
                 $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}]\n{ex}\n\n");
         }

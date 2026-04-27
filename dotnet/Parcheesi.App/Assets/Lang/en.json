@@ -28,6 +28,27 @@
   "board.kind.home": "Central home",
 
   "error.save_failed": "Warning: saving the game failed. Progress may be lost.",
+  "error.not_your_turn": "It's not your turn to play.",
+
+  "context.tutorial": "Tutorial in progress: Space to move to the next step, Escape to exit.",
+  "context.paused": "Game paused. F2 to resume, R to replay the last announcement.",
+  "context.ai_turn": "Opponent's turn, please wait. R to replay the last announcement, L to read the board, J for opponents.",
+  "context.end_screen": "Game over. Read-only keys: R replay, K stats, L board, M achievements, J opponents, P journal, H full help, V accelerated game replay. On-screen buttons: Replay, New game, View stats, Quit.",
+  "context.awaiting_roll": "Your turn. Press Space to roll the dice. T to skip your turn. H for full help.",
+  "context.no_piece_selected": "Dice rolled. Choose a piece with 1, 2, 3 or 4. T to skip your turn. H for full help.",
+  "context.piece_selected_normal": "Piece {0} selected. A for die 1, Z for die 2, S for the sum of both dice. Shift + key for preview. 1 to 4 to change piece. T to skip.",
+  "context.piece_selected_with_bonus": "Bonus of {0} squares available. Piece {1} selected. B to apply the bonus. 1 to 4 to change piece.",
+
+  "replay.start": "Game replay. {0} events. Space to skip to the next, Escape to exit.",
+  "replay.empty": "No events to replay for this game.",
+  "replay.end": "End of replay.",
+  "replay.interrupted": "Replay interrupted.",
+  "replay.event_format": "Event {0} of {1}: {2}",
+  "replay.dice_announce": "{0}: {1} and {2}{3}.",
+  "replay.no_legal_announce": "{0}: {1} and {2}, no legal move, turn passed.",
+  "replay.turn_passed_announce": "{0} passes their turn.",
+  "replay.rerolled_announce": "{0} plays again.",
+  "replay.turn_change_announce": "{0}'s turn.",
 
   "personality.standard_short": "The Computer",
   "personality.aggressive_short": "The Aggressor",
@@ -282,6 +303,7 @@
   "stats.pieces_home": "Pieces brought home: {0}",
   "stats.average_turns": "Average turns per game: {0}",
   "stats.best_record": "Best record: won in {0} turns",
+  "stats.avg_pieces_home_defeats": "Average pieces home on defeats: {0} of 4",
   "stats.by_difficulty_easy": "Easy: {0} of {1}",
   "stats.by_difficulty_medium": "Medium: {0} of {1}",
   "stats.by_difficulty_hard": "Hard: {0} of {1}",
@@ -310,7 +332,7 @@
   "turn_info.dice_used_suffix": " (used)",
   "turn_info.double_marker": "Double!",
 
-  "crash.message": "An error occurred in Parcheesi Access:\n\n{0}\n\n(Details written to crash.log next to the application.)",
+  "crash.message": "An error occurred in Parcheesi Access:\n\n{0}\n\n(Details written to crash.log in %APPDATA%\\Parcheesi-Access\\.)",
   "crash.title": "Error",
 
   "xaml.window_automation_name": "Parcheesi Access — Accessible Parcheesi game",
