@@ -4,6 +4,32 @@ All notable changes to Parcheesi Access are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-04-29
+
+A significant UX overhaul focused on the first-time experience: a streamlined main menu, a fully interactive learn-by-doing tutorial, and a sweep of accessibility and screen-reader friendliness improvements throughout the interface.
+
+### Added
+
+- **Streamlined main menu** with a clear two-screen flow. The launch screen now shows just six top-level buttons (New game, Audio tutorial, Statistics, Achievements, Settings, Quit) plus a Resume section when a saved game exists. The "New game" button opens a dedicated configuration screen with a Back button. Replaces the previous single-page setup that mixed game configuration, secondary actions, and rules in one dense view. Inspired by the menu structure of accessible board game platforms (RS Games, Manamon).
+- **Interactive tutorial** that teaches by doing rather than by reading. Twenty-six steps across four phases — basics, capturing, bringing home, and free play — with three pre-staged scenarios using forced dice rolls. The user actually performs each mechanic on a controlled situation and the tutorial validates each action before advancing. Ends with a free turn against the AI to bridge guided learning and real gameplay. Replaces the previous text-only tutorial that just narrated rules without practice.
+  - **Auto-launch on first run**: the tutorial starts automatically the first time the application is launched.
+  - **Contextual nudge on wrong key**: when the user presses an unexpected key, the tutorial briefly explains what the pressed key does in the game ("A applies the first die"), then repeats the expected action — instead of a generic "not quite" message.
+  - **Advanced mechanics phase**: three text steps cover doubles, the triple-double penalty, safe squares, and dice preview keys (Shift+A/Z/S) before the free-play phase.
+  - **Immediate feedback**: each completed action transitions to the next step instantly, following modern tutorial design principles ([Game Wisdom](https://game-wisdom.com/critical/tutorials-game-design-feedback)).
+
+### Changed
+
+- **Accessibility labels on every input field**: all text boxes and combo boxes in the main menu and settings now expose `AutomationProperties.LabeledBy` pointing to their visible label. Screen readers (NVDA/JAWS) now announce the label text when focus moves to the field, instead of just "edit" or "combobox". Previously, the user had to use the screen reader's review cursor to find the label. Affects player name fields, AI personality combos, walk-speed and AI-speed settings, and timer mode/behaviour combos.
+- **Removed emoji glyphs from all UI labels**, end-game log entries, settings section titles, and tutorial prompts. NVDA reads emojis inconsistently (sometimes verbosely as "game die" or "trophy", sometimes silently), which broke the announcement flow. Plain text labels everywhere now.
+- **First-time launch experience**: instead of focusing the "Tutorial" button and waiting for the user to find it, the tutorial now opens automatically.
+
+### Fixed
+
+- **Tutorial transitions no longer rebuild the board grid**: the previous implementation triggered a full rebuild of the board buttons when loading a snapshot for the next tutorial scenario, which destroyed keyboard focus and stranded the user on the "roll the dice" prompt with no way to continue. The internal `Board` property change notification was semantically incorrect — only the model contents changed, not the model identity. Removing the spurious notification preserves focus across snapshot transitions.
+- **Capture-bonus flow**: after a capture, the tutorial now explicitly prompts the user to re-select their piece before applying the bonus with B, matching the actual game flow where the selection resets after each move.
+
+[1.2.0]: https://github.com/PlatinumTsuki/Parcheesi-Access/releases/tag/v1.2.0
+
 ## [1.1.0] — 2026-04-27
 
 This release brings audio polish, accessibility improvements, a game replay feature, and switches user data storage to the standard `%APPDATA%` location so progress is preserved across versions.

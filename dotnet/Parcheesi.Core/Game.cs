@@ -8,6 +8,7 @@ namespace Parcheesi.Core;
 public class Game
 {
     private readonly Random _rng;
+    private Queue<(int d1, int d2)>? _forcedDice;
 
     public List<Player> Players { get; }
     public int CurrentIndex { get; private set; }
@@ -48,8 +49,18 @@ public class Game
         if (!AwaitingRoll)
             throw new InvalidOperationException("Les dés ont déjà été lancés ce tour-ci.");
 
-        var d1 = _rng.Next(1, 7);
-        var d2 = _rng.Next(1, 7);
+        int d1, d2;
+        if (_forcedDice != null && _forcedDice.Count > 0)
+        {
+            var f = _forcedDice.Dequeue();
+            d1 = f.d1;
+            d2 = f.d2;
+        }
+        else
+        {
+            d1 = _rng.Next(1, 7);
+            d2 = _rng.Next(1, 7);
+        }
         Die1 = d1;
         Die2 = d2;
         Die1Used = false;
@@ -59,6 +70,16 @@ public class Game
         if (isDouble) DoubleStreak++; else DoubleStreak = 0;
         return (d1, d2, isDouble);
     }
+
+    /// <summary>Tutorial-only: queue dice values that override the random RNG on subsequent rolls.</summary>
+    public void EnqueueForcedDice(IEnumerable<(int d1, int d2)> rolls)
+    {
+        _forcedDice ??= new Queue<(int, int)>();
+        foreach (var r in rolls) _forcedDice.Enqueue(r);
+    }
+
+    /// <summary>Tutorial-only: clear any pending forced dice.</summary>
+    public void ClearForcedDice() => _forcedDice = null;
 
     public Occupant? FindOccupant(int ringPos)
     {

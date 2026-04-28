@@ -93,7 +93,8 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 _isInGame = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(IsInSetup));
+                OnPropertyChanged(nameof(IsInMainMenu));
+                OnPropertyChanged(nameof(IsInNewGameSetup));
                 OnPropertyChanged(nameof(IsInEndScreen));
             }
         }
@@ -109,7 +110,8 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 _isInEndScreen = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(IsInSetup));
+                OnPropertyChanged(nameof(IsInMainMenu));
+                OnPropertyChanged(nameof(IsInNewGameSetup));
             }
         }
     }
@@ -124,15 +126,37 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 _isInSettings = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(IsInSetup));
+                OnPropertyChanged(nameof(IsInMainMenu));
+                OnPropertyChanged(nameof(IsInNewGameSetup));
             }
         }
     }
 
-    public bool IsInSetup => !_isInGame && !_isInEndScreen && !_isInSettings;
+    /// <summary>Sous-écran actif quand on n'est pas en jeu / fin de partie / réglages.</summary>
+    public enum MenuScreen { MainMenu, NewGameSetup }
+    private MenuScreen _menuScreen = MenuScreen.MainMenu;
+    public MenuScreen CurrentMenuScreen
+    {
+        get => _menuScreen;
+        set
+        {
+            if (_menuScreen != value)
+            {
+                _menuScreen = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsInMainMenu));
+                OnPropertyChanged(nameof(IsInNewGameSetup));
+            }
+        }
+    }
+
+    public bool IsInMainMenu => !_isInGame && !_isInEndScreen && !_isInSettings && _menuScreen == MenuScreen.MainMenu;
+    public bool IsInNewGameSetup => !_isInGame && !_isInEndScreen && !_isInSettings && _menuScreen == MenuScreen.NewGameSetup;
 
     public void OpenSettings() => IsInSettings = true;
     public void CloseSettings() => IsInSettings = false;
+    public void GoToMainMenu() => CurrentMenuScreen = MenuScreen.MainMenu;
+    public void GoToNewGameSetup() => CurrentMenuScreen = MenuScreen.NewGameSetup;
 
     /// <summary>Statut affiché en haut du menu principal.</summary>
     public string MenuStatusLine
@@ -194,7 +218,6 @@ public class MainViewModel : INotifyPropertyChanged
         // Maintenant que la localisation est chargée, initialise les valeurs par défaut localisées.
         _turnInfo = Loc.Get("turn_info.default");
         _diceInfo = Loc.Get("dice_info.none");
-        _tutorialChunks = BuildTutorialChunks();
 
         // Sons embarqués comme ressources dans le .exe (logical name "Sounds.<filename>").
         Audio = new AudioEngine(name => asm.GetManifestResourceStream($"Sounds.{name}"));
@@ -294,58 +317,351 @@ public class MainViewModel : INotifyPropertyChanged
         Audio.PlayMusic(file, Settings.AmbienceMusicVolume * gain, onEnd: PlayNextGameMusic);
     }
 
-    private int _tutorialIndex = -1;
-
-    /// <summary>
-    /// Étapes du tutoriel résolues à la volée depuis Loc (suit la langue active).
-    /// </summary>
-    private static string[] BuildTutorialChunks() => new[]
+    /// <summary>Action attendue à une étape du tutoriel interactif.</summary>
+    public enum TutorialAction
     {
-        Loc.Get("tutorial.step_1"),
-        Loc.Get("tutorial.step_2"),
-        Loc.Get("tutorial.step_3"),
-        Loc.Get("tutorial.step_4"),
-        Loc.Get("tutorial.step_5"),
-        Loc.Get("tutorial.step_6"),
-        Loc.Get("tutorial.step_7"),
-        Loc.Get("tutorial.step_8"),
-        Loc.Get("tutorial.step_9"),
-        Loc.Get("tutorial.step_10"),
+        None,
+        AdvanceText,        // n'importe quelle touche non-Échap fait avancer
+        DoRollDice,         // attend Espace pour lancer les dés
+        DoSelectPiece1,
+        DoSelectPiece2,
+        DoSelectPiece3,
+        DoSelectPiece4,
+        DoApplyDieA,
+        DoApplyDieZ,
+        DoApplyDieS,
+        DoApplyBonus,
+        DoEndTurn,
+        FreePlay,           // phase libre : toute action de jeu autorisée, F pour terminer
+        DoFinishFreePlay,   // touche F pendant la phase libre
+        Finish,             // dernière étape : la touche valide ferme le tuto
+    }
+
+    private class TutorialStep
+    {
+        public string PromptKey { get; init; } = "";
+        public TutorialAction Expected { get; init; }
+        public Action<MainViewModel>? OnEnter { get; init; }
+    }
+
+    private List<TutorialStep>? _tutorialSteps;
+    private int _tutorialStep = -1;
+    private System.Windows.Threading.DispatcherTimer? _tutorialAdvanceTimer;
+
+    public bool TutorialIsRunning => _tutorialStep >= 0;
+    public TutorialAction TutorialExpectedAction =>
+        (_tutorialSteps != null && _tutorialStep >= 0 && _tutorialStep < _tutorialSteps.Count)
+            ? _tutorialSteps[_tutorialStep].Expected
+            : TutorialAction.None;
+
+    private List<TutorialStep> BuildTutorialSteps() => new()
+    {
+        // Intro
+        new TutorialStep { PromptKey = "tutorial.welcome",                  Expected = TutorialAction.AdvanceText },
+        new TutorialStep { PromptKey = "tutorial.goal",                     Expected = TutorialAction.AdvanceText },
+
+        // Phase 1 : bases
+        new TutorialStep { PromptKey = "tutorial.basics_intro",             Expected = TutorialAction.AdvanceText, OnEnter = SetupBasicsScenario },
+        new TutorialStep { PromptKey = "tutorial.do_roll",                  Expected = TutorialAction.DoRollDice },
+        new TutorialStep { PromptKey = "tutorial.do_select_for_exit",       Expected = TutorialAction.DoSelectPiece1 },
+        new TutorialStep { PromptKey = "tutorial.do_apply_a_for_exit",      Expected = TutorialAction.DoApplyDieA },
+        new TutorialStep { PromptKey = "tutorial.do_select_again",          Expected = TutorialAction.DoSelectPiece1 },
+        new TutorialStep { PromptKey = "tutorial.do_apply_z",               Expected = TutorialAction.DoApplyDieZ },
+        new TutorialStep { PromptKey = "tutorial.end_of_basics",            Expected = TutorialAction.AdvanceText },
+
+        // Phase 2 : capture
+        new TutorialStep { PromptKey = "tutorial.capture_intro",            Expected = TutorialAction.AdvanceText, OnEnter = SetupCaptureScenario },
+        new TutorialStep { PromptKey = "tutorial.capture_do_roll",          Expected = TutorialAction.DoRollDice },
+        new TutorialStep { PromptKey = "tutorial.capture_do_select",        Expected = TutorialAction.DoSelectPiece1 },
+        new TutorialStep { PromptKey = "tutorial.capture_do_apply",         Expected = TutorialAction.DoApplyDieA },
+        new TutorialStep { PromptKey = "tutorial.capture_do_select_again",  Expected = TutorialAction.DoSelectPiece1 },
+        new TutorialStep { PromptKey = "tutorial.capture_do_bonus",         Expected = TutorialAction.DoApplyBonus },
+        new TutorialStep { PromptKey = "tutorial.end_of_capture",           Expected = TutorialAction.AdvanceText },
+
+        // Phase 3 : maison
+        new TutorialStep { PromptKey = "tutorial.home_intro",               Expected = TutorialAction.AdvanceText, OnEnter = SetupHomeScenario },
+        new TutorialStep { PromptKey = "tutorial.home_do_roll",             Expected = TutorialAction.DoRollDice },
+        new TutorialStep { PromptKey = "tutorial.home_do_select",           Expected = TutorialAction.DoSelectPiece1 },
+        new TutorialStep { PromptKey = "tutorial.home_do_apply",            Expected = TutorialAction.DoApplyDieA },
+        new TutorialStep { PromptKey = "tutorial.end_of_home",              Expected = TutorialAction.AdvanceText },
+
+        // Inter-phase : mécaniques avancées à connaître avant la phase libre.
+        // Texte uniquement pour ne pas alourdir le tuto avec 3 scénarios scriptés supplémentaires.
+        new TutorialStep { PromptKey = "tutorial.advanced_doubles",         Expected = TutorialAction.AdvanceText },
+        new TutorialStep { PromptKey = "tutorial.advanced_safe",            Expected = TutorialAction.AdvanceText },
+        new TutorialStep { PromptKey = "tutorial.advanced_preview",         Expected = TutorialAction.AdvanceText },
+
+        // Phase 4 : free play (l'IA joue normalement, l'utilisateur teste librement)
+        new TutorialStep { PromptKey = "tutorial.free_play_intro",          Expected = TutorialAction.FreePlay,    OnEnter = SetupFreePlayScenario },
+
+        // Wrap-up : on coupe l'IA proprement avant l'annonce finale
+        new TutorialStep { PromptKey = "tutorial.wrap_up",                  Expected = TutorialAction.Finish,      OnEnter = vm => vm.StopAllAITimers() },
     };
-    private string[] _tutorialChunks = Array.Empty<string>();
 
-    public bool TutorialIsRunning => _tutorialIndex >= 0;
-
-    /// <summary>Démarre le tutoriel à pas-à-pas (l'utilisateur avance avec Espace).</summary>
+    /// <summary>Démarre le tutoriel interactif. Lance une partie silencieuse Solo+1IA Facile.</summary>
     public void StartTutorial()
     {
         Settings.HasSeenTutorialPrompt = true;
-        _tutorialIndex = 0;
-        AnnounceRequested?.Invoke(_tutorialChunks[0]);
+        _tutorialSteps = BuildTutorialSteps();
+        _tutorialStep = 0;
+        // La 1re étape est texte pur — pas de partie démarrée encore.
+        // La partie sera lancée quand on entrera dans l'étape "basics_intro" (qui a OnEnter).
+        AnnounceTutorialPrompt();
     }
 
-    /// <summary>Avance d'une étape dans le tutoriel. Appelé sur Espace.</summary>
+    private void AnnounceTutorialPrompt()
+    {
+        if (!TutorialIsRunning) return;
+        var step = _tutorialSteps![_tutorialStep];
+        AnnounceRequested?.Invoke(Loc.Get(step.PromptKey));
+    }
+
+    /// <summary>Appelé par MainWindow à chaque touche pendant le tuto. Renvoie true si la touche peut passer aux handlers normaux.</summary>
+    public bool TutorialAcceptsKey(TutorialAction attempted)
+    {
+        if (!TutorialIsRunning) return true;
+
+        // Eager advance : si une advance est déjà en attente (l'utilisateur a fait l'action
+        // correcte du step précédent et on attend 1800 ms pour laisser l'annonce du jeu finir),
+        // et qu'il appuie déjà sur une touche, on force l'advance immédiate et on évalue
+        // la touche contre le NOUVEAU step. Ça évite les nudges injustes pour les utilisateurs
+        // rapides qui anticipent la prochaine action.
+        if (_tutorialPendingActionAdvance && _tutorialAdvanceTimer != null && _tutorialAdvanceTimer.IsEnabled)
+        {
+            _tutorialAdvanceTimer.Stop();
+            _tutorialPendingActionAdvance = false;
+            AdvanceTutorialStep();
+        }
+
+        var expected = TutorialExpectedAction;
+        if (expected == TutorialAction.AdvanceText)
+        {
+            // Avance immédiate sur n'importe quelle action
+            ScheduleAdvance(0);
+            return false; // on a géré, pas besoin de passer plus loin
+        }
+        if (expected == TutorialAction.Finish)
+        {
+            // Touche finale : ferme le tuto et renvoie au menu
+            FinishTutorial();
+            return false;
+        }
+        if (expected == TutorialAction.FreePlay)
+        {
+            // Phase libre : F termine, toute autre touche passe au handler normal du jeu.
+            if (attempted == TutorialAction.DoFinishFreePlay)
+            {
+                ScheduleAdvance(0);
+                return false;
+            }
+            return true;
+        }
+        if (attempted == expected)
+        {
+            // Bonne action : on laisse le handler de jeu l'exécuter normalement.
+            // Après l'action, NotifyTutorialActionDone() avancera l'étape.
+            _tutorialPendingActionAdvance = true;
+            return true;
+        }
+        // Mauvaise touche : nudge contextuel qui explique d'abord ce que fait la touche
+        // tapée (si on en a une explication), puis répète la consigne attendue.
+        var explanation = ExplainKeyForNudge(attempted);
+        var prefix = explanation != null
+            ? Loc.Get("tutorial.nudge_prefix") + " " + explanation + "."
+            : Loc.Get("tutorial.nudge_prefix");
+        AnnounceRequested?.Invoke(prefix + " " + Loc.Get(_tutorialSteps![_tutorialStep].PromptKey));
+        return false;
+    }
+
+    /// <summary>Pour un nudge contextuel : explique en une ligne ce que fait la touche tapée
+    /// si elle a une signification connue dans le jeu. null = pas d'explication spécifique.</summary>
+    private static string? ExplainKeyForNudge(TutorialAction attempted) => attempted switch
+    {
+        TutorialAction.DoRollDice         => Loc.Get("tutorial.nudge_explain_roll"),
+        TutorialAction.DoSelectPiece1     => Loc.Get("tutorial.nudge_explain_select"),
+        TutorialAction.DoSelectPiece2     => Loc.Get("tutorial.nudge_explain_select"),
+        TutorialAction.DoSelectPiece3     => Loc.Get("tutorial.nudge_explain_select"),
+        TutorialAction.DoSelectPiece4     => Loc.Get("tutorial.nudge_explain_select"),
+        TutorialAction.DoApplyDieA        => Loc.Get("tutorial.nudge_explain_apply_a"),
+        TutorialAction.DoApplyDieZ        => Loc.Get("tutorial.nudge_explain_apply_z"),
+        TutorialAction.DoApplyDieS        => Loc.Get("tutorial.nudge_explain_apply_s"),
+        TutorialAction.DoApplyBonus       => Loc.Get("tutorial.nudge_explain_bonus"),
+        TutorialAction.DoEndTurn          => Loc.Get("tutorial.nudge_explain_end_turn"),
+        TutorialAction.DoFinishFreePlay   => Loc.Get("tutorial.nudge_explain_finish"),
+        _ => null,
+    };
+
+    private bool _tutorialPendingActionAdvance;
+
+    /// <summary>Appelé par les méthodes de jeu (RollDice/SelectPiece/ApplyMove/etc.) quand l'action s'est exécutée.</summary>
+    public void NotifyTutorialActionDone(TutorialAction performed)
+    {
+        if (!TutorialIsRunning || !_tutorialPendingActionAdvance) return;
+        if (TutorialExpectedAction != performed) return;
+        _tutorialPendingActionAdvance = false;
+        // Réactivité immédiate : on enchaîne dès que l'action est faite. La prochaine
+        // consigne du tuto contient déjà l'info utile que le jeu venait d'annoncer
+        // ("Tu as fait cinq et trois", "Capture réussie", etc.), donc couper l'annonce
+        // assertive du jeu n'enlève rien à la compréhension. Best practice de tutorial
+        // design = feedback immédiat.
+        ScheduleAdvance(0);
+    }
+
+    private void ScheduleAdvance(int delayMs)
+    {
+        if (_tutorialAdvanceTimer == null)
+        {
+            _tutorialAdvanceTimer = new System.Windows.Threading.DispatcherTimer();
+            _tutorialAdvanceTimer.Tick += (_, _) =>
+            {
+                _tutorialAdvanceTimer!.Stop();
+                AdvanceTutorialStep();
+            };
+        }
+        _tutorialAdvanceTimer.Stop();
+        _tutorialAdvanceTimer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, delayMs));
+        _tutorialAdvanceTimer.Start();
+    }
+
+    private void AdvanceTutorialStep()
+    {
+        if (!TutorialIsRunning) return;
+        _tutorialStep++;
+        if (_tutorialStep >= _tutorialSteps!.Count)
+        {
+            FinishTutorial();
+            return;
+        }
+        var step = _tutorialSteps[_tutorialStep];
+        step.OnEnter?.Invoke(this);
+        AnnounceTutorialPrompt();
+    }
+
+    /// <summary>Compatibilité : ancien API "AdvanceTutorial" — appelée sur Espace dans le menu.
+    /// Désormais redirige vers TutorialAcceptsKey(AdvanceText).</summary>
     public bool AdvanceTutorial()
     {
-        if (_tutorialIndex < 0) return false;
-        _tutorialIndex++;
-        if (_tutorialIndex >= _tutorialChunks.Length)
-        {
-            _tutorialIndex = -1;
-            return true; // fini
-        }
-        AnnounceRequested?.Invoke(_tutorialChunks[_tutorialIndex]);
+        if (!TutorialIsRunning) return false;
+        TutorialAcceptsKey(TutorialAction.AdvanceText);
         return true;
     }
 
-    /// <summary>Sort du tutoriel sans le finir. Appelé sur Échap.</summary>
+    /// <summary>Sort du tutoriel sans le finir. Échap.</summary>
     public void InterruptTutorial()
     {
-        if (_tutorialIndex >= 0)
-        {
-            _tutorialIndex = -1;
-            AnnounceRequested?.Invoke(Loc.Get("tutorial.exited"));
-        }
+        if (!TutorialIsRunning) return;
+        _tutorialAdvanceTimer?.Stop();
+        _tutorialStep = -1;
+        _tutorialSteps = null;
+        _tutorialPendingActionAdvance = false;
+        AnnounceRequested?.Invoke(Loc.Get("tutorial.exited"));
+        // Si une partie tuto était en cours, on revient au menu
+        if (IsInGame) ReturnToMenu();
+    }
+
+    private void FinishTutorial()
+    {
+        _tutorialAdvanceTimer?.Stop();
+        _tutorialStep = -1;
+        _tutorialSteps = null;
+        _tutorialPendingActionAdvance = false;
+        AnnounceRequested?.Invoke(Loc.Get("tutorial.finished"));
+        if (IsInGame) ReturnToMenu();
+    }
+
+    // === Setup des scénarios pour le tuto interactif ===
+
+    private static void SetupBasicsScenario(MainViewModel vm)
+    {
+        // Lance une partie Solo+1IA Facile, force les dés à 5+3 pour la 1re manche.
+        vm.StartGame(new[] { false, true }, AIDifficulty.Facile);
+        vm._game?.EnqueueForcedDice(new[] { (5, 3) });
+    }
+
+    private static void SetupCaptureScenario(MainViewModel vm)
+    {
+        // Construit un snapshot où Rouge pion 1 est sur sa case de départ et
+        // un Jaune est 5 cases plus loin sur l'anneau (case capturable).
+        // Les autres pions sont en base. Force les dés à 5+1.
+        if (vm._game == null) return;
+        var redStart = BoardLayout.StartPos(PlayerColor.Rouge);
+        var captureTarget = (redStart + 5) % BoardLayout.RingSize;
+        var snap = vm._game.ToSnapshot(vm.AIDifficulty);
+
+        // Reset all pieces to Base, then place specifics.
+        foreach (var ps in snap.Players)
+            foreach (var piece in ps.Pieces)
+            {
+                piece.Status = PieceStatus.Base;
+                piece.Position = null;
+            }
+        var rouge = snap.Players.First(p => p.Color == PlayerColor.Rouge);
+        rouge.Pieces[0].Status = PieceStatus.Ring;
+        rouge.Pieces[0].Position = redStart;
+        var jaune = snap.Players.First(p => p.Color == PlayerColor.Jaune);
+        jaune.Pieces[0].Status = PieceStatus.Ring;
+        jaune.Pieces[0].Position = captureTarget;
+
+        // Tour du Rouge, en attente du lancer.
+        snap.CurrentIndex = 0;
+        snap.AwaitingRoll = true;
+        snap.Die1 = null; snap.Die2 = null;
+        snap.Die1Used = false; snap.Die2Used = false;
+        snap.Bonus = 0;
+        snap.DoubleStreak = 0;
+
+        vm.RestoreGameFromSnapshot(snap);
+        vm._game?.EnqueueForcedDice(new[] { (5, 1) });
+    }
+
+    private static void SetupFreePlayScenario(MainViewModel vm)
+    {
+        // Lance une partie fraîche Solo+1IA Facile, dés aléatoires (pas de queue forcée).
+        // Pendant cette phase, le garde de ScheduleAITurn laisse l'IA jouer normalement.
+        vm.StartGame(new[] { false, true }, AIDifficulty.Facile);
+    }
+
+    private static void SetupHomeScenario(MainViewModel vm)
+    {
+        // Construit un snapshot où Rouge pion 1 est dans le couloir final, à 1 case
+        // de la maison. Force les dés à 1+2 pour le rentrer avec A.
+        if (vm._game == null) return;
+        var snap = vm._game.ToSnapshot(vm.AIDifficulty);
+        foreach (var ps in snap.Players)
+            foreach (var piece in ps.Pieces)
+            {
+                piece.Status = PieceStatus.Base;
+                piece.Position = null;
+            }
+        var rouge = snap.Players.First(p => p.Color == PlayerColor.Rouge);
+        rouge.Pieces[0].Status = PieceStatus.Lane;
+        // Lane indices : 0 (entrée) à 6 (avant-dernière case avant maison).
+        // À 1 case de la maison = lane index 6 → on rentre avec un dé de 1.
+        rouge.Pieces[0].Position = 6;
+
+        snap.CurrentIndex = 0;
+        snap.AwaitingRoll = true;
+        snap.Die1 = null; snap.Die2 = null;
+        snap.Die1Used = false; snap.Die2Used = false;
+        snap.Bonus = 0;
+        snap.DoubleStreak = 0;
+
+        vm.RestoreGameFromSnapshot(snap);
+        vm._game?.EnqueueForcedDice(new[] { (1, 2) });
+    }
+
+    /// <summary>Recharge le moteur de jeu depuis un snapshot et rafraîchit le board MVVM.
+    /// On NE fait PAS OnPropertyChanged(nameof(Board)) : la propriété Board garde la même
+    /// identité (même instance de BoardModel), seul son contenu change. RefreshOccupancy suffit.
+    /// Firer le PropertyChanged déclencherait BuildBoardGrid() qui détruit les boutons et casse
+    /// le focus clavier — bug observé pendant le tuto à la transition entre scénarios.</summary>
+    private void RestoreGameFromSnapshot(GameSnapshot snap)
+    {
+        StopAllAITimers();
+        _game = CoreGame.FromSnapshot(snap);
+        Board?.RefreshOccupancy(_game);
+        OnPropertyChanged(nameof(MyPiecesDescription));
+        UpdateTurnInfo();
     }
 
     /// <summary>
@@ -570,6 +886,10 @@ public class MainViewModel : INotifyPropertyChanged
     private void ScheduleAITurn()
     {
         if (_game == null || _game.Finished || !_game.Current.IsComputer) return;
+        // Pendant les scénarios scriptés du tuto (bases / capture / maison), l'IA ne joue pas
+        // — les états sont orchestrés via snapshots et dés forcés. En revanche, pendant la phase
+        // libre (FreePlay), l'IA joue normalement pour offrir une vraie partie d'entraînement.
+        if (TutorialIsRunning && TutorialExpectedAction != TutorialAction.FreePlay) return;
         var current = _game.Current;
         ScheduleAIPulses(3, Settings.AIThinkPulseMs, () =>
         {
@@ -976,6 +1296,8 @@ public class MainViewModel : INotifyPropertyChanged
         {
             Announce(Loc.Format("announce.dice_rolled_concise", rolledBy, d1, d2, isDouble ? Loc.Get("announce.dice_double_short") : "", opportunitySuffix));
         }
+
+        NotifyTutorialActionDone(TutorialAction.DoRollDice);
     }
 
     public void SelectPiece(int id)
@@ -1011,6 +1333,15 @@ public class MainViewModel : INotifyPropertyChanged
             // En mode concis : juste la position. L'utilisateur appuie sur I ou Maj+touche pour les détails.
             Announce(Loc.Format("announce.piece_selected_concise", id, PieceShortPosition(piece)));
         }
+
+        NotifyTutorialActionDone(id switch
+        {
+            1 => TutorialAction.DoSelectPiece1,
+            2 => TutorialAction.DoSelectPiece2,
+            3 => TutorialAction.DoSelectPiece3,
+            4 => TutorialAction.DoSelectPiece4,
+            _ => TutorialAction.None,
+        });
     }
 
     /// <summary>Description courte de la position d'un pion, sans préfixe "pion N".</summary>
@@ -1255,6 +1586,15 @@ public class MainViewModel : INotifyPropertyChanged
 
         _game.ConsumeDie(usage);
 
+        NotifyTutorialActionDone(usage switch
+        {
+            DiceUsage.Die1  => TutorialAction.DoApplyDieA,
+            DiceUsage.Die2  => TutorialAction.DoApplyDieZ,
+            DiceUsage.Sum   => TutorialAction.DoApplyDieS,
+            DiceUsage.Bonus => TutorialAction.DoApplyBonus,
+            _ => TutorialAction.None,
+        });
+
         // Met à jour les compteurs de stats de la partie en cours.
         if (result.CaptureMessage != null)
         {
@@ -1475,6 +1815,7 @@ public class MainViewModel : INotifyPropertyChanged
         _recordedEvents.Add(new ReplayTurnPassed(_game.Current.Label, PenaltyMessage: null));
         var t = _game.NextTurn();
         FinishTurnTransition(t);
+        NotifyTutorialActionDone(TutorialAction.DoEndTurn);
     }
 
     private void FinishTurnTransition(CoreGame.TurnTransition t)
@@ -1673,6 +2014,7 @@ public class MainViewModel : INotifyPropertyChanged
         IsPaused = false;
         IsInGame = false;
         IsInEndScreen = false;
+        CurrentMenuScreen = MenuScreen.MainMenu;
         OnPropertyChanged(nameof(MenuStatusLine));
         StartMenuAmbience();
     }

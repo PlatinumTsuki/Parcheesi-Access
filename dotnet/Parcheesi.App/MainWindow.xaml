@@ -81,8 +81,129 @@
 
         <Grid Grid.Row="1" Margin="20,5,20,15">
 
-            <ScrollViewer x:Name="SetupPanel"
-                          Visibility="{Binding IsInSetup, Converter={StaticResource BoolToVis}}"
+            <!-- ÉCRAN 1 : MENU PRINCIPAL (épuré, point d'entrée) -->
+            <ScrollViewer x:Name="MainMenuPanel"
+                          Visibility="{Binding IsInMainMenu, Converter={StaticResource BoolToVis}}"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          KeyboardNavigation.TabNavigation="Cycle">
+                <StackPanel HorizontalAlignment="Center"
+                            MaxWidth="480"
+                            Margin="20">
+
+                    <TextBlock x:Name="MainMenuTitle"
+                               Text="Menu principal"
+                               FontSize="20" FontWeight="Bold"
+                               TextAlignment="Center"
+                               Foreground="{StaticResource TextBrush}"
+                               Margin="0,0,0,8" />
+
+                    <TextBlock x:Name="MenuStatusText"
+                               Text="{Binding MenuStatusLine}"
+                               FontSize="13"
+                               TextAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}"
+                               Margin="0,0,0,18"
+                               TextWrapping="Wrap"
+                               AutomationProperties.Name="Statut" />
+
+                    <!-- Reprendre une partie sauvegardée -->
+                    <Border x:Name="ResumeSection"
+                            Visibility="Collapsed"
+                            Background="#1E2D1E"
+                            BorderBrush="#3FB950"
+                            BorderThickness="2"
+                            CornerRadius="8"
+                            Padding="12"
+                            Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock x:Name="ResumeSectionTitle"
+                                       Text="Une partie est en cours"
+                                       FontSize="14" FontWeight="Bold"
+                                       Foreground="#3FB950"
+                                       Margin="0,0,0,6" />
+                            <Button x:Name="ResumeButton"
+                                    Content="Reprendre la partie sauvegardée"
+                                    Click="ResumeButton_Click"
+                                    Background="#3FB950"
+                                    Foreground="White"
+                                    FontSize="15"
+                                    Padding="12,10"
+                                    HorizontalAlignment="Stretch" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Boutons principaux : un par ligne, gros, espacés -->
+                    <Button x:Name="MenuNewGameButton"
+                            Content="Nouvelle partie"
+                            Click="MenuNewGameButton_Click"
+                            HorizontalAlignment="Stretch"
+                            FontSize="16"
+                            Padding="14,12"
+                            Margin="0,0,0,8" />
+                    <Button x:Name="MenuTutorialButton"
+                            Content="Tutoriel audio"
+                            Click="TutorialButton_Click"
+                            HorizontalAlignment="Stretch"
+                            FontSize="15"
+                            Padding="12,10"
+                            Margin="0,0,0,8" />
+                    <Button x:Name="MenuStatsButton"
+                            Content="Statistiques"
+                            Click="MenuStatsButton_Click"
+                            HorizontalAlignment="Stretch"
+                            FontSize="15"
+                            Padding="12,10"
+                            Margin="0,0,0,8" />
+                    <Button x:Name="MenuAchievementsButton"
+                            Content="Succès"
+                            Click="MenuAchievementsButton_Click"
+                            HorizontalAlignment="Stretch"
+                            FontSize="15"
+                            Padding="12,10"
+                            Margin="0,0,0,8" />
+                    <Button x:Name="MenuSettingsButton"
+                            Content="Réglages"
+                            Click="MenuSettingsButton_Click"
+                            HorizontalAlignment="Stretch"
+                            FontSize="15"
+                            Padding="12,10"
+                            Margin="0,0,0,8" />
+                    <Button x:Name="MenuQuitButton"
+                            Content="Quitter"
+                            Click="QuitButton_Click"
+                            Background="#7D3535"
+                            Foreground="White"
+                            HorizontalAlignment="Stretch"
+                            FontSize="15"
+                            Padding="12,10"
+                            Margin="0,0,0,12" />
+
+                    <Expander x:Name="RulesExpander"
+                              Header="Lire les règles complètes du Parcheesi"
+                              Foreground="{StaticResource TextBrush}"
+                              Margin="0,8,0,0">
+                        <TextBlock x:Name="RulesText"
+                                   TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0">
+                            But : faire rentrer tes 4 pions à la maison.
+                            <LineBreak /><LineBreak />
+                            Chaque tour, tu lances 2 dés (Espace), choisis un pion (1-4), puis appliques un dé (A pour le 1er, Z pour le 2nd, S pour la somme).
+                            <LineBreak /><LineBreak />
+                            Pour sortir un pion de la base, il faut un 5 (sur un dé ou en somme).
+                            <LineBreak /><LineBreak />
+                            Si tu fais un double, tu rejoues. Trois doubles d'affilée et le pion le plus avancé retourne à la base.
+                            <LineBreak /><LineBreak />
+                            Si tu tombes sur un adversaire (sauf case sûre), tu le captures et gagnes 20 cases bonus à appliquer avec B.
+                            <LineBreak /><LineBreak />
+                            Quand un pion rentre à la maison, tu gagnes 10 cases bonus.
+                        </TextBlock>
+                    </Expander>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ÉCRAN 2 : CONFIGURATION D'UNE NOUVELLE PARTIE -->
+            <ScrollViewer x:Name="NewGameSetupPanel"
+                          Visibility="{Binding IsInNewGameSetup, Converter={StaticResource BoolToVis}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           KeyboardNavigation.TabNavigation="Cycle">
@@ -90,43 +211,12 @@
                             MaxWidth="540"
                             Margin="20">
 
-                    <!-- En-tête : statut rapide -->
-                    <TextBlock x:Name="MenuStatusText"
-                               Text="{Binding MenuStatusLine}"
-                               FontSize="13"
+                    <TextBlock x:Name="NewGameTitle"
+                               Text="Nouvelle partie"
+                               FontSize="20" FontWeight="Bold"
                                TextAlignment="Center"
-                               Foreground="{StaticResource MutedBrush}"
-                               Margin="0,0,0,15"
-                               TextWrapping="Wrap"
-                               AutomationProperties.Name="Statut" />
+                               Margin="0,0,0,15" />
 
-                    <!-- Section : Reprendre une partie sauvegardée -->
-                    <Border x:Name="ResumeSection"
-                            Visibility="Collapsed"
-                            Background="#1E2D1E"
-                            BorderBrush="#3FB950"
-                            BorderThickness="2"
-                            CornerRadius="8"
-                            Padding="14"
-                            Margin="0,0,0,15">
-                        <StackPanel>
-                            <TextBlock x:Name="ResumeSectionTitle"
-                                       Text="🔄 Une partie est en cours"
-                                       FontSize="16" FontWeight="Bold"
-                                       Foreground="#3FB950"
-                                       Margin="0,0,0,8" />
-                            <Button x:Name="ResumeButton"
-                                    Content="Reprendre la partie sauvegardée"
-                                    Click="ResumeButton_Click"
-                                    Background="#3FB950"
-                                    Foreground="White"
-                                    FontSize="15"
-                                    Padding="12,8"
-                                    HorizontalAlignment="Stretch" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Section : Nouvelle partie -->
                     <Border Background="{StaticResource PanelBg}"
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1"
@@ -134,11 +224,6 @@
                             Padding="14"
                             Margin="0,0,0,15">
                         <StackPanel>
-                            <TextBlock x:Name="NewGameTitle"
-                                       Text="🎲 Nouvelle partie"
-                                       FontSize="16" FontWeight="Bold"
-                                       Margin="0,0,0,12" />
-
                             <Label x:Name="OpponentsLabel"
                                    Content="Adversaires :"
                                    Target="{Binding ElementName=GameModeCombo}"
@@ -180,19 +265,17 @@
                                                TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,8"
                                                Text="Laisse les champs vides pour utiliser les valeurs par défaut. Seuls les joueurs présents dans le mode choisi sont affichés." />
 
-                                    <!-- Slot Rouge (toujours visible) -->
                                     <StackPanel x:Name="PlayerSlotRouge" Margin="0,0,0,10">
                                         <Label x:Name="NameRougeLabel" Content="Ton nom (Rouge)" Target="{Binding ElementName=NameRouge}" Foreground="{StaticResource TextBrush}" />
-                                        <TextBox x:Name="NameRouge" Padding="6,4" />
+                                        <TextBox x:Name="NameRouge" Padding="6,4" AutomationProperties.LabeledBy="{Binding ElementName=NameRougeLabel}" />
                                     </StackPanel>
 
-                                    <!-- Slot Jaune -->
                                     <StackPanel x:Name="PlayerSlotJaune" Margin="0,0,0,10">
                                         <Label x:Name="NameJauneLabel" Content="Nom du Jaune" Target="{Binding ElementName=NameJaune}" Foreground="{StaticResource TextBrush}" />
-                                        <TextBox x:Name="NameJaune" Padding="6,4" Margin="0,0,0,4" />
+                                        <TextBox x:Name="NameJaune" Padding="6,4" Margin="0,0,0,4" AutomationProperties.LabeledBy="{Binding ElementName=NameJauneLabel}" />
                                         <StackPanel x:Name="PersonalityJauneRow">
                                             <Label x:Name="PersonalityJauneLabel" Content="Personnalité de l'IA Jaune" Target="{Binding ElementName=PersonalityJaune}" Foreground="{StaticResource MutedBrush}" />
-                                            <ComboBox x:Name="PersonalityJaune" Padding="6,4" SelectedIndex="0">
+                                            <ComboBox x:Name="PersonalityJaune" Padding="6,4" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding ElementName=PersonalityJauneLabel}">
                                                 <ComboBoxItem x:Name="PersonalityJauneRandom" Content="Aléatoire (par défaut)" />
                                                 <ComboBoxItem x:Name="PersonalityJauneAggressive" Content="L'Aggressive — capture à tout prix, prend des risques" />
                                                 <ComboBoxItem x:Name="PersonalityJaunePrudent" Content="La Prudente — défensive, reste sur les cases sûres" />
@@ -201,13 +284,12 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <!-- Slot Bleu -->
                                     <StackPanel x:Name="PlayerSlotBleu" Margin="0,0,0,10">
                                         <Label x:Name="NameBleuLabel" Content="Nom du Bleu" Target="{Binding ElementName=NameBleu}" Foreground="{StaticResource TextBrush}" />
-                                        <TextBox x:Name="NameBleu" Padding="6,4" Margin="0,0,0,4" />
+                                        <TextBox x:Name="NameBleu" Padding="6,4" Margin="0,0,0,4" AutomationProperties.LabeledBy="{Binding ElementName=NameBleuLabel}" />
                                         <StackPanel x:Name="PersonalityBleuRow">
                                             <Label x:Name="PersonalityBleuLabel" Content="Personnalité de l'IA Bleu" Target="{Binding ElementName=PersonalityBleu}" Foreground="{StaticResource MutedBrush}" />
-                                            <ComboBox x:Name="PersonalityBleu" Padding="6,4" SelectedIndex="0">
+                                            <ComboBox x:Name="PersonalityBleu" Padding="6,4" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding ElementName=PersonalityBleuLabel}">
                                                 <ComboBoxItem x:Name="PersonalityBleuRandom" Content="Aléatoire (par défaut)" />
                                                 <ComboBoxItem x:Name="PersonalityBleuAggressive" Content="L'Aggressive — capture à tout prix, prend des risques" />
                                                 <ComboBoxItem x:Name="PersonalityBleuPrudent" Content="La Prudente — défensive, reste sur les cases sûres" />
@@ -216,13 +298,12 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <!-- Slot Vert -->
                                     <StackPanel x:Name="PlayerSlotVert" Margin="0,0,0,10">
                                         <Label x:Name="NameVertLabel" Content="Nom du Vert" Target="{Binding ElementName=NameVert}" Foreground="{StaticResource TextBrush}" />
-                                        <TextBox x:Name="NameVert" Padding="6,4" Margin="0,0,0,4" />
+                                        <TextBox x:Name="NameVert" Padding="6,4" Margin="0,0,0,4" AutomationProperties.LabeledBy="{Binding ElementName=NameVertLabel}" />
                                         <StackPanel x:Name="PersonalityVertRow">
                                             <Label x:Name="PersonalityVertLabel" Content="Personnalité de l'IA Vert" Target="{Binding ElementName=PersonalityVert}" Foreground="{StaticResource MutedBrush}" />
-                                            <ComboBox x:Name="PersonalityVert" Padding="6,4" SelectedIndex="0">
+                                            <ComboBox x:Name="PersonalityVert" Padding="6,4" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding ElementName=PersonalityVertLabel}">
                                                 <ComboBoxItem x:Name="PersonalityVertRandom" Content="Aléatoire (par défaut)" />
                                                 <ComboBoxItem x:Name="PersonalityVertAggressive" Content="L'Aggressive — capture à tout prix, prend des risques" />
                                                 <ComboBoxItem x:Name="PersonalityVertPrudent" Content="La Prudente — défensive, reste sur les cases sûres" />
@@ -242,53 +323,11 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Section : Autres actions -->
-                    <Border Background="{StaticResource PanelBg}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Padding="14"
-                            Margin="0,0,0,15">
-                        <StackPanel>
-                            <TextBlock x:Name="OthersTitle"
-                                       Text="📚 Autres"
-                                       FontSize="16" FontWeight="Bold"
-                                       Margin="0,0,0,8" />
-                            <Button x:Name="TutorialButton"
-                                    Content="🎓 Tutoriel audio (recommandé pour la première fois)"
-                                    Click="TutorialButton_Click"
-                                    Background="#5C7DB5"
-                                    Foreground="White"
-                                    HorizontalAlignment="Stretch"
-                                    Padding="10,8"
-                                    Margin="0,0,0,8" />
-                            <UniformGrid Columns="2" Rows="2">
-                                <Button x:Name="MenuStatsButton" Content="Statistiques" Click="MenuStatsButton_Click" Margin="0,0,2,2" />
-                                <Button x:Name="MenuAchievementsButton" Content="Succès" Click="MenuAchievementsButton_Click" Margin="2,0,0,2" />
-                                <Button x:Name="MenuSettingsButton" Content="Réglages" Click="MenuSettingsButton_Click" Margin="0,2,2,0" />
-                                <Button x:Name="MenuQuitButton" Content="Quitter" Click="QuitButton_Click" Background="#7D3535" Foreground="White" Margin="2,2,0,0" />
-                            </UniformGrid>
-                        </StackPanel>
-                    </Border>
-
-                    <Expander x:Name="RulesExpander"
-                              Header="Lire les règles complètes du Parcheesi"
-                              Foreground="{StaticResource TextBrush}">
-                        <TextBlock x:Name="RulesText"
-                                   TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0">
-                            But : faire rentrer tes 4 pions à la maison.
-                            <LineBreak /><LineBreak />
-                            Chaque tour, tu lances 2 dés (Espace), choisis un pion (1-4), puis appliques un dé (A pour le 1er, Z pour le 2nd, S pour la somme).
-                            <LineBreak /><LineBreak />
-                            Pour sortir un pion de la base, il faut un 5 (sur un dé ou en somme).
-                            <LineBreak /><LineBreak />
-                            Si tu fais un double, tu rejoues. Trois doubles d'affilée et le pion le plus avancé retourne à la base.
-                            <LineBreak /><LineBreak />
-                            Si tu tombes sur un adversaire (sauf case sûre), tu le captures et gagnes 20 cases bonus à appliquer avec B.
-                            <LineBreak /><LineBreak />
-                            Quand un pion rentre à la maison, tu gagnes 10 cases bonus.
-                        </TextBlock>
-                    </Expander>
+                    <Button x:Name="BackToMenuButton"
+                            Content="Retour au menu"
+                            Click="BackToMenuButton_Click"
+                            HorizontalAlignment="Stretch"
+                            Padding="10,8" />
                 </StackPanel>
             </ScrollViewer>
 
@@ -402,7 +441,7 @@
                           VerticalScrollBarVisibility="Auto">
                 <StackPanel HorizontalAlignment="Center" MaxWidth="640" Margin="20">
                     <TextBlock x:Name="SettingsTitle"
-                               Text="⚙️ Réglages"
+                               Text="Réglages"
                                FontSize="22" FontWeight="Bold"
                                TextAlignment="Center"
                                Margin="0,0,0,15" />
@@ -416,7 +455,7 @@
                     <!-- Volumes -->
                     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock x:Name="VolumesTitle" Text="🔊 Volumes" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
+                            <TextBlock x:Name="VolumesTitle" Text="Volumes" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
 
                             <Label x:Name="MasterLabel" Content="Volume général" Target="{Binding ElementName=MasterSlider}" Foreground="{StaticResource TextBrush}" />
                             <Slider x:Name="MasterSlider" Minimum="0" Maximum="100" Value="{Binding Settings.MasterVolume, Converter={StaticResource VolToPct}}" TickFrequency="10" IsSnapToTickEnabled="True" AutoToolTipPlacement="BottomRight" AutomationProperties.Name="Volume général en pourcentage" Margin="0,0,0,8" />
@@ -444,10 +483,10 @@
                     <!-- Vitesses -->
                     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock x:Name="SpeedsTitle" Text="⚡ Vitesses" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
+                            <TextBlock x:Name="SpeedsTitle" Text="Vitesses" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
 
                             <Label x:Name="WalkSpeedLabel" Content="Vitesse du tap-par-case quand un pion bouge" Target="{Binding ElementName=WalkSpeedCombo}" Foreground="{StaticResource TextBrush}" />
-                            <ComboBox x:Name="WalkSpeedCombo" SelectionChanged="WalkSpeedCombo_Changed" Margin="0,0,0,10" Padding="8,6">
+                            <ComboBox x:Name="WalkSpeedCombo" SelectionChanged="WalkSpeedCombo_Changed" Margin="0,0,0,10" Padding="8,6" AutomationProperties.LabeledBy="{Binding ElementName=WalkSpeedLabel}">
                                 <ComboBoxItem x:Name="WalkSpeedSlow" Tag="200" Content="Lent (un pion met longtemps à traverser)" />
                                 <ComboBoxItem x:Name="WalkSpeedModerate" Tag="150" Content="Modéré" />
                                 <ComboBoxItem x:Name="WalkSpeedNormal" Tag="110" Content="Normal" IsSelected="True" />
@@ -456,7 +495,7 @@
                             </ComboBox>
 
                             <Label x:Name="AISpeedLabel" Content="Délai de réflexion de l'ordinateur entre chaque tick" Target="{Binding ElementName=AISpeedCombo}" Foreground="{StaticResource TextBrush}" />
-                            <ComboBox x:Name="AISpeedCombo" SelectionChanged="AISpeedCombo_Changed" Padding="8,6">
+                            <ComboBox x:Name="AISpeedCombo" SelectionChanged="AISpeedCombo_Changed" Padding="8,6" AutomationProperties.LabeledBy="{Binding ElementName=AISpeedLabel}">
                                 <ComboBoxItem x:Name="AISpeedPatient" Tag="800" Content="Patient (l'ordi prend son temps)" />
                                 <ComboBoxItem x:Name="AISpeedNormal" Tag="500" Content="Normal" IsSelected="True" />
                                 <ComboBoxItem x:Name="AISpeedQuick" Tag="350" Content="Vif" />
@@ -468,10 +507,10 @@
                     <!-- Timer de tour -->
                     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock x:Name="TimerTitle" Text="⏱ Timer de tour" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
+                            <TextBlock x:Name="TimerTitle" Text="Timer de tour" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
 
                             <Label x:Name="TimerModeLabel" Content="Mode du timer" Target="{Binding ElementName=TimerModeCombo}" Foreground="{StaticResource TextBrush}" />
-                            <ComboBox x:Name="TimerModeCombo" SelectionChanged="TimerModeCombo_Changed" Margin="0,0,0,10" Padding="8,6">
+                            <ComboBox x:Name="TimerModeCombo" SelectionChanged="TimerModeCombo_Changed" Margin="0,0,0,10" Padding="8,6" AutomationProperties.LabeledBy="{Binding ElementName=TimerModeLabel}">
                                 <ComboBoxItem x:Name="TimerDisabled" Tag="Disabled" Content="Désactivé (par défaut, jeu détendu)" IsSelected="True" />
                                 <ComboBoxItem x:Name="TimerRelaxed" Tag="Relaxed"  Content="Détente — 2 minutes par tour" />
                                 <ComboBoxItem x:Name="TimerStandard" Tag="Standard" Content="Standard — 60 secondes par tour" />
@@ -479,7 +518,7 @@
                             </ComboBox>
 
                             <Label x:Name="TimerBehaviorLabel" Content="Comportement à l'expiration du timer" Target="{Binding ElementName=TimeoutBehaviorCombo}" Foreground="{StaticResource TextBrush}" />
-                            <ComboBox x:Name="TimeoutBehaviorCombo" SelectionChanged="TimeoutBehaviorCombo_Changed" Padding="8,6">
+                            <ComboBox x:Name="TimeoutBehaviorCombo" SelectionChanged="TimeoutBehaviorCombo_Changed" Padding="8,6" AutomationProperties.LabeledBy="{Binding ElementName=TimerBehaviorLabel}">
                                 <ComboBoxItem x:Name="TimerBehaviorAutoPlay" Tag="AutoPlay" Content="Auto-play : l'ordinateur joue à ta place (recommandé)" IsSelected="True" />
                                 <ComboBoxItem x:Name="TimerBehaviorSkip" Tag="SkipTurn" Content="Saut du tour : tu perds ton tour" />
                             </ComboBox>
@@ -492,7 +531,7 @@
                     <!-- Comportement -->
                     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock x:Name="BehaviorTitle" Text="🔧 Comportement audio" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
+                            <TextBlock x:Name="BehaviorTitle" Text="Comportement audio" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
                             <CheckBox x:Name="LegalPreviewCheck" IsChecked="{Binding Settings.LegalMovePreviewSounds}" Margin="0,4" Foreground="{StaticResource TextBrush}" Content="Aperçu sonore à la sélection (3 tons cloche/tic indiquant si A, Z et S sont jouables)" />
                             <CheckBox x:Name="OpportunityHintsCheck" IsChecked="{Binding Settings.OpportunityHints}" Margin="0,4" Foreground="{StaticResource TextBrush}" Content="Annoncer les opportunités au lancer (« capture possible », « maison possible »)" />
                             <CheckBox x:Name="ZoneTransitionCheck" IsChecked="{Binding Settings.ZoneTransitionSounds}" Margin="0,4" Foreground="{StaticResource TextBrush}" Content="Sons de transition quand on change de zone en navigant avec les flèches" />
@@ -505,7 +544,7 @@
                     <!-- Langue -->
                     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock x:Name="LanguageTitle" Text="🌐 Langue" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
+                            <TextBlock x:Name="LanguageTitle" Text="Langue" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" />
                             <Label x:Name="LanguageLabel" Content="Langue de l'interface" Target="{Binding ElementName=LanguageCombo}" Foreground="{StaticResource TextBrush}" />
                             <ComboBox x:Name="LanguageCombo" SelectionChanged="LanguageCombo_Changed" Padding="8,6" AutomationProperties.Name="Langue de l'interface">
                                 <ComboBoxItem Tag="fr" Content="Français" />

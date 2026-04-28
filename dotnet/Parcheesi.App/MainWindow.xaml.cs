@@ -26,14 +26,37 @@ public partial class MainWindow : Window
         DataContext = _vm;
         Loaded += (_, _) =>
         {
-            RefreshSetupScreen();
+            RefreshMainMenu();
             _vm.StartMenuAmbience();
+            // Premier lancement : déclencher automatiquement le tutoriel.
+            // StartTutorial met HasSeenTutorialPrompt à true, donc il ne se relancera
+            // plus tout seul, même si l'utilisateur quitte avec Échap dès la première étape.
+            if (!_vm.Settings.HasSeenTutorialPrompt)
+            {
+                _vm.StartTutorial();
+            }
         };
         PreviewKeyDown += MainWindow_PreviewKeyDown;
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(_vm.Board) && _vm.Board != null)
                 BuildBoardGrid();
+            // Quand le tuto déclenche StartGame en interne, on amène le focus au plateau
+            // (sinon il reste sur le bouton "Tutoriel" du menu, devenu invisible).
+            if (e.PropertyName == nameof(_vm.IsInGame) && _vm.IsInGame && _vm.TutorialIsRunning)
+            {
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    _previousZone = null;
+                    FocusBoardPosition(BoardLayoutData.RingCells[0]);
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
+            // Quand on revient au menu principal (fin/abandon de tuto, abandon de partie, etc.),
+            // on rétablit le focus sur le bon bouton du menu principal.
+            if (e.PropertyName == nameof(_vm.IsInMainMenu) && _vm.IsInMainMenu)
+            {
+                Dispatcher.BeginInvoke(new Action(RefreshMainMenu), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
         };
         _vm.AnnounceRequested += AnnounceToScreenReader;
         _vm.LogEntries.CollectionChanged += (_, _) => Dispatcher.BeginInvoke(new Action(ScrollLogToBottom),
@@ -75,10 +98,19 @@ public partial class MainWindow : Window
         AutomationProperties.SetName(TurnInfoText, Loc.Get("xaml.turn_info_label"));
         AutomationProperties.SetName(DiceInfoText, Loc.Get("xaml.dice_label"));
 
-        // Menu principal
+        // Menu principal (écran 1)
+        MainMenuTitle.Text = Loc.Get("xaml.main_menu_title");
         AutomationProperties.SetName(MenuStatusText, Loc.Get("xaml.status_label"));
         ResumeSectionTitle.Text = Loc.Get("xaml.resume_section_title");
         ResumeButton.Content = Loc.Get("xaml.resume_button");
+        MenuNewGameButton.Content = Loc.Get("xaml.menu_new_game_button");
+        MenuTutorialButton.Content = Loc.Get("xaml.menu_tutorial_button");
+        MenuStatsButton.Content = Loc.Get("xaml.menu_stats_button");
+        MenuAchievementsButton.Content = Loc.Get("xaml.menu_achievements_button");
+        MenuSettingsButton.Content = Loc.Get("xaml.menu_settings_button");
+        MenuQuitButton.Content = Loc.Get("xaml.menu_quit_button");
+
+        // Configuration nouvelle partie (écran 2)
         NewGameTitle.Text = Loc.Get("xaml.new_game_title");
         OpponentsLabel.Content = Loc.Get("xaml.opponents_label");
         AutomationProperties.SetName(GameModeCombo, Loc.Get("xaml.gamemode_automation"));
@@ -122,12 +154,7 @@ public partial class MainWindow : Window
         PersonalityVertCoureur.Content = pCoureur;
 
         StartButton.Content = Loc.Get("xaml.start_button");
-        OthersTitle.Text = Loc.Get("xaml.others_title");
-        TutorialButton.Content = Loc.Get("xaml.tutorial_button");
-        MenuStatsButton.Content = Loc.Get("xaml.menu_stats_button");
-        MenuAchievementsButton.Content = Loc.Get("xaml.menu_achievements_button");
-        MenuSettingsButton.Content = Loc.Get("xaml.menu_settings_button");
-        MenuQuitButton.Content = Loc.Get("xaml.menu_quit_button");
+        BackToMenuButton.Content = Loc.Get("xaml.back_to_menu");
         RulesExpander.Header = Loc.Get("xaml.rules_header");
         RulesText.Inlines.Clear();
         RulesText.Inlines.Add(new System.Windows.Documents.Run(Loc.Get("xaml.rules_text")));
@@ -282,10 +309,9 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>Met à jour l'affichage du menu : montre la section Reprise si save existe, donne le focus.</summary>
-    private void RefreshSetupScreen()
+    /// <summary>Rafraîchit le menu principal : Reprise visible si save existe, focus prioritaire.</summary>
+    private void RefreshMainMenu()
     {
-        UpdatePlayerSlotsVisibility();
         if (_vm.HasSavedGame())
         {
             ResumeSection.Visibility = Visibility.Visible;
@@ -294,13 +320,20 @@ public partial class MainWindow : Window
         else if (!_vm.Settings.HasSeenTutorialPrompt)
         {
             ResumeSection.Visibility = Visibility.Collapsed;
-            TutorialButton.Focus();
+            MenuTutorialButton.Focus();
         }
         else
         {
             ResumeSection.Visibility = Visibility.Collapsed;
-            StartButton.Focus();
+            MenuNewGameButton.Focus();
         }
+    }
+
+    /// <summary>Rafraîchit l'écran de configuration : ajuste les slots IA selon le mode et focus la première combo.</summary>
+    private void RefreshNewGameSetup()
+    {
+        UpdatePlayerSlotsVisibility();
+        GameModeCombo.Focus();
     }
 
     private void GameModeCombo_Changed(object sender, SelectionChangedEventArgs e)
@@ -342,13 +375,29 @@ public partial class MainWindow : Window
     private void AbandonButton_Click(object sender, RoutedEventArgs e)
     {
         _vm.AbandonAndReturnToMenu();
-        Dispatcher.BeginInvoke(new Action(RefreshSetupScreen), System.Windows.Threading.DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(new Action(RefreshMainMenu), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
+    /// <summary>Depuis le menu principal : ouvrir l'écran de configuration de partie.</summary>
+    private void MenuNewGameButton_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.GoToNewGameSetup();
+        Dispatcher.BeginInvoke(new Action(RefreshNewGameSetup), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Depuis l'écran de configuration : retour au menu principal.</summary>
+    private void BackToMenuButton_Click(object sender, RoutedEventArgs e)
+    {
+        _vm.GoToMainMenu();
+        Dispatcher.BeginInvoke(new Action(RefreshMainMenu), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Depuis l'écran de fin : retour direct à la configuration de partie (pour changer les paramètres).</summary>
     private void NewGameButton_Click(object sender, RoutedEventArgs e)
     {
         _vm.ReturnToMenu();
-        Dispatcher.BeginInvoke(new Action(RefreshSetupScreen), System.Windows.Threading.DispatcherPriority.Loaded);
+        _vm.GoToNewGameSetup();
+        Dispatcher.BeginInvoke(new Action(RefreshNewGameSetup), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void ReplayButton_Click(object sender, RoutedEventArgs e)
@@ -379,7 +428,8 @@ public partial class MainWindow : Window
     private void CloseSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         _vm.CloseSettings();
-        Dispatcher.BeginInvoke(new Action(RefreshSetupScreen), System.Windows.Threading.DispatcherPriority.Loaded);
+        _vm.GoToMainMenu();
+        Dispatcher.BeginInvoke(new Action(RefreshMainMenu), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void ResetSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -460,6 +510,23 @@ public partial class MainWindow : Window
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
     }
+
+    /// <summary>Mappe une touche clavier vers une action attendue par le tutoriel interactif.</summary>
+    private static MainViewModel.TutorialAction MapKeyToTutorialAction(Key key) => key switch
+    {
+        Key.Space or Key.Enter or Key.Right => MainViewModel.TutorialAction.DoRollDice,
+        Key.D1 or Key.NumPad1 => MainViewModel.TutorialAction.DoSelectPiece1,
+        Key.D2 or Key.NumPad2 => MainViewModel.TutorialAction.DoSelectPiece2,
+        Key.D3 or Key.NumPad3 => MainViewModel.TutorialAction.DoSelectPiece3,
+        Key.D4 or Key.NumPad4 => MainViewModel.TutorialAction.DoSelectPiece4,
+        Key.A => MainViewModel.TutorialAction.DoApplyDieA,
+        Key.Z => MainViewModel.TutorialAction.DoApplyDieZ,
+        Key.S => MainViewModel.TutorialAction.DoApplyDieS,
+        Key.B => MainViewModel.TutorialAction.DoApplyBonus,
+        Key.T => MainViewModel.TutorialAction.DoEndTurn,
+        Key.F => MainViewModel.TutorialAction.DoFinishFreePlay,
+        _ => MainViewModel.TutorialAction.None,
+    };
 
     private void RollButton_Click(object sender, RoutedEventArgs e) => _vm.RollDice();
     private void ReadBoardButton_Click(object sender, RoutedEventArgs e) => _vm.ReadBoard();
@@ -629,28 +696,46 @@ public partial class MainWindow : Window
     {
         if (Keyboard.FocusedElement is TextBox) return;
 
-        // Tutoriel : Espace = étape suivante, Échap = quitter, modificateurs ignorés.
+        // Tutoriel interactif : on intercepte les touches pour valider l'action attendue
+        // à l'étape courante, et on bloque (avec un nudge) toute autre touche mutante.
+        // Les touches d'inspection (lecture seule) sont toujours autorisées.
         if (_vm.TutorialIsRunning)
         {
-            if (e.Key == Key.LeftShift || e.Key == Key.RightShift ||
-                e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl ||
-                e.Key == Key.LeftAlt || e.Key == Key.RightAlt) return;
-
-            if (e.Key == Key.Space || e.Key == Key.Enter || e.Key == Key.Right)
-            {
-                _vm.AdvanceTutorial();
-                e.Handled = true;
-                return;
-            }
+            // Échap : sortir du tuto
             if (e.Key == Key.Escape)
             {
                 _vm.InterruptTutorial();
                 e.Handled = true;
                 return;
             }
-            // Toute autre touche quitte le tutoriel et passe à l'action normale
-            _vm.InterruptTutorial();
-            // On NE consomme PAS l'événement : la touche déclenche son action habituelle
+            // Modificateurs seuls : ignore
+            if (e.Key == Key.LeftShift || e.Key == Key.RightShift ||
+                e.Key == Key.LeftCtrl || e.Key == Key.RightCtrl ||
+                e.Key == Key.LeftAlt || e.Key == Key.RightAlt) return;
+
+            // Touches d'inspection (lecture seule) : toujours autorisées même hors action attendue.
+            switch (e.Key)
+            {
+                case Key.D when _vm.IsInGame: _vm.ReadDice(); e.Handled = true; return;
+                case Key.L when _vm.IsInGame: _vm.ReadBoard(); e.Handled = true; return;
+                case Key.J when _vm.IsInGame: _vm.ReadOpponents(); e.Handled = true; return;
+                case Key.P when _vm.IsInGame: _vm.ReadRecentLog(); e.Handled = true; return;
+                case Key.R: _vm.ReplayLastAnnouncement(); e.Handled = true; return;
+                case Key.K when _vm.IsInGame: _vm.ReadStats(); e.Handled = true; return;
+                case Key.M when _vm.IsInGame: _vm.ReadAchievements(); e.Handled = true; return;
+                case Key.I when _vm.IsInGame: _vm.ReadSelectedPieceDetails(); e.Handled = true; return;
+                case Key.H when _vm.IsInGame: _vm.ReadHelp(); e.Handled = true; return;
+                case Key.F1: _vm.ReadContextualKeys(); e.Handled = true; return;
+            }
+
+            var attempted = MapKeyToTutorialAction(e.Key);
+            var accepted = _vm.TutorialAcceptsKey(attempted);
+            if (!accepted)
+            {
+                e.Handled = true;
+                return;
+            }
+            // VM a accepté : on laisse passer aux handlers normaux ci-dessous.
         }
 
         // Sur l'écran de fin de partie, on autorise uniquement les touches en lecture seule
